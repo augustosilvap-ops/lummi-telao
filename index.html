@@ -153,6 +153,8 @@ body.op .colA{flex-basis:400px}
 #lxBtns button{min-height:42px;justify-content:flex-start;font-size:13px;text-align:left}
 #lxBtns button.on{border-color:var(--gold);background:rgba(240,192,112,.16)}
 .lxNow{margin-top:8px;font-size:12px;color:var(--ink-dim)}
+.resT input{width:100%;min-height:34px;padding:4px 6px;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+.resT td,.resT th{padding:2px 3px;text-align:left;color:var(--ink-dim)}
 .lxNow.on{color:var(--gold)}
 #pSpeed{min-height:38px}
 #qBlack.on{background:#000;border-color:var(--stop);color:var(--stop)}
@@ -260,7 +262,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 17:39</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 18:38</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -420,6 +422,22 @@ input[type=file]{display:none}
           <button id="scr-L">Abrir telão esquerdo</button>
           <button id="scr-C">Abrir telão central</button>
           <button id="scr-R">Abrir telão direito</button>
+        </div>
+        <div class="label" style="margin-top:6px">Como o telão está ligado</div>
+        <div class="g2 center">
+          <button id="res-off">Uma janela por telão</button>
+          <button id="res-on">Saída única (Resolume / 3 telas numa só)</button>
+        </div>
+        <div id="resBox" hidden style="display:flex;flex-direction:column;gap:6px">
+          <p class="hint">Uma janela só com as 3 telas lado a lado. Coloque essa janela na saída que vai para o Resolume ou para o processador e deixe em tela cheia. Ajuste abaixo onde fica cada tela dentro da imagem (em %), igual às “slices” do Resolume.</p>
+          <label class="check"><input type="checkbox" id="resTest"> Mostrar tela de teste (nome e borda de cada tela)</label>
+          <table class="resT" style="width:100%;font-size:12px;border-collapse:collapse">
+            <tr><th></th><th>x %</th><th>y %</th><th>largura %</th><th>altura %</th></tr>
+            <tr><td>Esquerda</td><td><input id="res-L0" type="number" step="0.5"></td><td><input id="res-L1" type="number" step="0.5"></td><td><input id="res-L2" type="number" step="0.5"></td><td><input id="res-L3" type="number" step="0.5"></td></tr>
+            <tr><td>Central</td><td><input id="res-C0" type="number" step="0.5"></td><td><input id="res-C1" type="number" step="0.5"></td><td><input id="res-C2" type="number" step="0.5"></td><td><input id="res-C3" type="number" step="0.5"></td></tr>
+            <tr><td>Direita</td><td><input id="res-R0" type="number" step="0.5"></td><td><input id="res-R1" type="number" step="0.5"></td><td><input id="res-R2" type="number" step="0.5"></td><td><input id="res-R3" type="number" step="0.5"></td></tr>
+          </table>
+          <button id="resReset">Voltar para 3 partes iguais lado a lado</button>
         </div>
         <div class="label" style="margin-top:6px">Formato do telão central</div>
         <div class="g2 center">
@@ -1567,11 +1585,46 @@ if (gl){
 
 /* resolução: adaptável no show, fixa durante a gravação */
 let popup = null, pcv = null, pctx = null, recSize = null;
-const screens = {L: null, C: null, R: null}, ROLE = {L: 'esquerdo', C: 'central', R: 'direito'}, ROLE_I = {L: 0, C: 1, R: 2};
+const screens = {L: null, C: null, R: null, U: null}, ROLE = {L: 'esquerdo', C: 'central', R: 'direito', U: 'único (Resolume · 3 telas)'}, ROLE_I = {L: 0, C: 1, R: 2};
 let screenMode = 'one'; try { screenMode = localStorage.getItem('lummi-screens') || 'one'; } catch(_){}
 let vidMode = 'repeat'; try { vidMode = localStorage.getItem('lummi-vidmode') || 'repeat'; } catch(_){}
 function openCount(){ return Object.values(screens).filter(Boolean).length; }
-function slicing(){ return screenMode === 'pano' && openCount() > 1 && !recSize; }
+function slicing(){ return screenMode === 'pano' && !recSize && (RES.on ? !!screens.U : openCount() > 1); }
+/* ===== saída única: as 3 telas numa janela só (Resolume / processador de vídeo recorta) ===== */
+const RES_DEF = {on: false, rects: {L: [0, 0, 1/3, 1], C: [1/3, 0, 1/3, 1], R: [2/3, 0, 1/3, 1]}, test: false};
+let RES = JSON.parse(JSON.stringify(RES_DEF)); try { const o = JSON.parse(localStorage.getItem('lummi-res') || '{}'); if (o.rects) RES.rects = o.rects; RES.on = !!o.on; } catch(_){}
+const resSave = () => { try { localStorage.setItem('lummi-res', JSON.stringify({on: RES.on, rects: RES.rects})); } catch(_){} };
+function drawSingle(sc){
+  const c = sc.ctx, W = sc.cv.width, H = sc.cv.height, sl = slicing(), tw = sl ? Math.floor(cv.width / 3) : cv.width;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  ['L', 'C', 'R'].forEach(r => {
+    const [x, y, w, h] = RES.rects[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
+    if (!sl && screenMode === 'one' && r !== 'C') return;
+    const sx = sl ? ROLE_I[r] * tw : 0;
+    if (SHAPE.on && r === 'C') drawShapedRect(c, sx, 0, tw, cv.height, dx, dy, dw, dh);
+    else coverDraw(c, sx, 0, tw, cv.height, dx, dy, dw, dh);
+    if (RES.test){
+      c.save(); c.strokeStyle = r === 'C' ? '#ffd27a' : '#7ad0ff'; c.lineWidth = Math.max(3, W / 600); c.strokeRect(dx + 2, dy + 2, dw - 4, dh - 4);
+      c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(dx + dw / 2 - dw * .3, dy + dh / 2 - dh * .08, dw * .6, dh * .16);
+      c.fillStyle = '#fff'; c.font = `700 ${Math.round(Math.min(dw, dh) / 9)}px system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText({L: 'ESQUERDA', C: 'CENTRAL', R: 'DIREITA'}[r], dx + dw / 2, dy + dh / 2); c.restore();
+    }
+  });
+}
+function coverDraw(c, sx, sy, sw, sh, dx, dy, dw, dh){
+  const ba = dw / dh, sa = sw / sh; let cx = sx, cy = sy, cw = sw, ch = sh;
+  if (sa > ba){ cw = sh * ba; cx = sx + (sw - cw) / 2; } else { ch = sw / ba; cy = sy + (sh - ch) / 2; }
+  c.drawImage(cv, cx, cy, cw, ch, dx, dy, dw, dh);
+}
+function paintRes(){
+  document.getElementById('res-on')?.classList.toggle('on', RES.on);
+  document.getElementById('res-off')?.classList.toggle('on', !RES.on);
+  const box = document.getElementById('resBox'); if (box){ box.hidden = !RES.on; box.style.display = RES.on ? 'flex' : 'none'; }
+  ['L', 'C', 'R'].forEach(r => [0, 1, 2, 3].forEach(k => { const el = document.getElementById(`res-${r}${k}`); if (el && document.activeElement !== el) el.value = +(RES.rects[r][k] * 100).toFixed(2); }));
+  const t = document.getElementById('resTest'); if (t) t.checked = RES.test;
+  ['L', 'R'].forEach(r => { const b = document.getElementById('scr-' + r); if (b) b.style.display = RES.on ? 'none' : ''; });
+  const bc = document.getElementById('scr-C'); if (bc) bc.textContent = RES.on ? (screens.U ? '✓ Saída única aberta' : 'Abrir a saída única') : (screens.C ? '✓ ' : 'Abrir ') + 'telão central';
+}
 /* ===== formato do telão central (escalonado) ===== */
 const SHAPE_DEF = {on: false, h: 1, ar: 1.11, x: .5, y: .5, sh: .12, si: .09, guide: false};
 let SHAPE = Object.assign({}, SHAPE_DEF); try { Object.assign(SHAPE, JSON.parse(localStorage.getItem('lummi-shape') || '{}')); } catch(_){}
@@ -1590,9 +1643,11 @@ function shapePath(ctx, bx, by, bw, bh){
 }
 /* desenha a imagem do telão central dentro do contorno escalonado */
 function drawShaped(sc, sx, sy, sw, sh){
-  const c = sc.ctx, W = sc.cv.width, H = sc.cv.height;
-  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
-  const [bx, by, bw, bh] = shapeBox(W, H);
+  const c = sc.ctx; c.fillStyle = '#000'; c.fillRect(0, 0, sc.cv.width, sc.cv.height);
+  drawShapedRect(c, sx, sy, sw, sh, 0, 0, sc.cv.width, sc.cv.height);
+}
+function drawShapedRect(c, sx, sy, sw, sh, ox, oy, W, H){
+  let [bx, by, bw, bh] = shapeBox(W, H); bx += ox; by += oy;
   const ba = bw / bh, sa = sw / sh;           // “cobrir”: corta o que sobra da imagem, sem distorcer
   let cx = sx, cy = sy, cw = sw, ch = sh;
   if (sa > ba){ cw = sh * ba; cx = sx + (sw - cw) / 2; } else { ch = sw / ba; cy = sy + (sh - ch) / 2; }
@@ -1623,7 +1678,7 @@ function paintShape(){
 }
 function refreshScreens(){
   for (const r in screens){ if (screens[r] && screens[r].win.closed) screens[r] = null; }
-  const pr = screens.C || screens.L || screens.R;
+  const pr = screens.U || screens.C || screens.L || screens.R;
   popup = pr ? pr.win : null; pcv = pr ? pr.cv : null; pctx = pr ? pr.ctx : null;
   paintScreens(); rehomeVids();
 }
@@ -1650,6 +1705,7 @@ function resize(){
   else {
     const pop = popup && !popup.closed;
     [w, h] = outSize();
+    if (RES.on && screens.U && pop){ const rc = RES.rects.C; w = Math.max(64, w * rc[2]); h = Math.max(64, h * rc[3]); }
     if (!pop){ w = aw; h = ah; }
     const pDpr = pop ? (popup.devicePixelRatio || 1) : (devicePixelRatio || 1);
     const pw = slicing() ? pixelSize(w * 3, h, pDpr, 3) : pop || panel.hidden ? pixelSize(w, h, pDpr) : pixelSize(w, h, pDpr).map(v => Math.round(v * .75));
@@ -2815,7 +2871,7 @@ function fullscreen(doc){
 }
 document.getElementById('full').onclick = e => { fullscreen(); e.currentTarget.blur(); };
 
-function openTelao(){ openScreen('C'); }
+function openTelao(){ openScreen(RES.on ? 'U' : 'C'); }
 function openScreen(role){
   if (screens[role] && !screens[role].win.closed){ screens[role].win.focus(); return; }
   const w = window.open('', 'lummi-telao-' + role, 'popup,width=1280,height=720');
@@ -2841,6 +2897,7 @@ function paintScreens(){
   ['L','C','R'].forEach(r => { const b = document.getElementById('scr-' + r); if (b){ b.classList.toggle('on', !!screens[r]); b.textContent = (screens[r] ? '✓ ' : 'Abrir ') + 'telão ' + ROLE[r]; b.hidden = screenMode === 'one' && r !== 'C'; } });
   const st = document.getElementById('screenStatus');
   if (st) st.textContent = screenMode === 'one' ? 'Só o telão central recebe a imagem.' : screenMode === 'mirror' ? 'Os telões abertos mostram a mesma imagem.' : (openCount() > 1 ? 'Imagem contínua: a Lummi fica no central, e o céu e os fundos se estendem pelos laterais. As posições “Esquerda” e “Direita” levam a Lummi para os telões laterais.' : 'Abra os 3 telões para a imagem contínua. Se o teatro usar um divisor de vídeo (uma tela só, bem larga), abra só o central.');
+  if (typeof paintRes === 'function') try { paintRes(); } catch(_){}
 }
 ['one','mirror','pano'].forEach(m => document.getElementById('sm-' + m).onclick = e => { screenMode = m; try { localStorage.setItem('lummi-screens', m); } catch(_){} paintScreens(); resize(); e.currentTarget.blur(); });
 document.getElementById('shp-rect').onclick = e => { SHAPE.on = false; shapeSave(); paintShape(); say('Telão central retangular.'); e.currentTarget.blur(); };
@@ -2850,9 +2907,15 @@ document.getElementById('shpGuide').onchange = e => { SHAPE.guide = e.target.che
   document.getElementById(id).oninput = e => { SHAPE[k] = +e.target.value / d; shapeSave(); paintShape(); };
 });
 document.getElementById('shpReset').onclick = e => { const g = SHAPE.guide; SHAPE = Object.assign({}, SHAPE_DEF, {on: true, guide: g}); shapeSave(); paintShape(); e.currentTarget.blur(); };
+document.getElementById('res-on').onclick = e => { RES.on = true; resSave(); paintRes(); paintScreens(); resize(); say('Saída única: clique em Telão (T) para abrir a janela com as 3 telas.'); e.currentTarget.blur(); };
+document.getElementById('res-off').onclick = e => { RES.on = false; resSave(); if (screens.U && !screens.U.win.closed) screens.U.win.close(); refreshScreens(); paintRes(); resize(); e.currentTarget.blur(); };
+document.getElementById('resTest').onchange = e => { RES.test = e.target.checked; };
+['L', 'C', 'R'].forEach(r => [0, 1, 2, 3].forEach(k => { document.getElementById(`res-${r}${k}`).oninput = e => { const v = parseFloat(e.target.value); if (!isNaN(v)){ RES.rects[r][k] = Math.max(0, Math.min(100, v)) / 100; resSave(); resize(); } }; }));
+document.getElementById('resReset').onclick = e => { RES.rects = JSON.parse(JSON.stringify(RES_DEF.rects)); resSave(); paintRes(); resize(); e.currentTarget.blur(); };
+paintRes();
 paintShape();
 ['center','repeat'].forEach(m => document.getElementById('vm-' + m).onclick = e => { vidMode = m; try { localStorage.setItem('lummi-vidmode', m); } catch(_){} paintScreens(); say(m === 'center' ? 'Vídeos das danças só no telão central (com 3 telões no panorâmico).' : 'Vídeos das danças repetidos nos 3 telões.'); e.currentTarget.blur(); });
-['L','C','R'].forEach(r => document.getElementById('scr-' + r).onclick = e => { openScreen(r); resize(); e.currentTarget.blur(); });
+['L','C','R'].forEach(r => document.getElementById('scr-' + r).onclick = e => { openScreen(RES.on && r === 'C' ? 'U' : r); resize(); e.currentTarget.blur(); });
 
 /* ===== luz: 8 cenas mandadas por MIDI para o programa/mesa de iluminação ===== */
 const LOOKS = ['', 'Blackout (tudo apagado)', 'Clara sozinha (foco nela)', 'Conversa Lummi e Clara (luz suave quente)', 'Dança infantil / ballet (colorida e alegre)',
@@ -3321,6 +3384,7 @@ function frame(now){
     const sl = slicing(), sw = sl ? Math.floor(cv.width / 3) : cv.width;
     for (const r in screens){
       const sc = screens[r]; if (!sc) continue;
+      if (r === 'U'){ const pw = Math.round(sc.win.innerWidth * (sc.win.devicePixelRatio || 1)), ph = Math.round(sc.win.innerHeight * (sc.win.devicePixelRatio || 1)); if (sc.cv.width !== pw || sc.cv.height !== ph){ sc.cv.width = pw; sc.cv.height = ph; } drawSingle(sc); if (blackA > .002){ sc.ctx.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; sc.ctx.fillRect(0, 0, pw, ph); } continue; }
       if (sc.cv.width !== sw || sc.cv.height !== cv.height){ sc.cv.width = sw; sc.cv.height = cv.height; }
       if (SHAPE.on && r === 'C') drawShaped(sc, sl ? sw : 0, 0, sw, cv.height);
       else if (sl) sc.ctx.drawImage(cv, ROLE_I[r] * sw, 0, sw, cv.height, 0, 0, sw, cv.height); else sc.ctx.drawImage(cv, 0, 0);
