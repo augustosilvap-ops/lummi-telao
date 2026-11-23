@@ -260,7 +260,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 16:15</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 17:39</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -420,6 +420,22 @@ input[type=file]{display:none}
           <button id="scr-L">Abrir telão esquerdo</button>
           <button id="scr-C">Abrir telão central</button>
           <button id="scr-R">Abrir telão direito</button>
+        </div>
+        <div class="label" style="margin-top:6px">Formato do telão central</div>
+        <div class="g2 center">
+          <button id="shp-rect">Retangular (16:9)</button>
+          <button id="shp-step">Escalonado (como na foto)</button>
+        </div>
+        <div id="shpBox" hidden style="display:flex;flex-direction:column;gap:6px">
+          <p class="hint">A imagem é desenhada só dentro do contorno do telão central; fora dele fica preto. Abra o telão, ligue “Mostrar contorno” e ajuste até a linha branca bater com as bordas do telão de verdade.</p>
+          <label class="check"><input type="checkbox" id="shpGuide"> Mostrar contorno e grade no telão (para ajustar)</label>
+          <label class="field">Altura do contorno <span class="val" id="shpHv"></span><input type="range" id="shpH" min="30" max="100" step="1"></label>
+          <label class="field">Largura ÷ altura <span class="val" id="shpARv"></span><input type="range" id="shpAR" min="60" max="200" step="1"></label>
+          <label class="field">Posição horizontal <span class="val" id="shpXv"></span><input type="range" id="shpX" min="0" max="100" step="0.5"></label>
+          <label class="field">Posição vertical <span class="val" id="shpYv"></span><input type="range" id="shpY" min="0" max="100" step="0.5"></label>
+          <label class="field">Altura do degrau de cima <span class="val" id="shpSHv"></span><input type="range" id="shpSH" min="0" max="40" step="0.5"></label>
+          <label class="field">Recuo do degrau (cada lado) <span class="val" id="shpSIv"></span><input type="range" id="shpSI" min="0" max="30" step="0.5"></label>
+          <button id="shpReset">Voltar ao formato da foto</button>
         </div>
         <div class="label" style="margin-top:6px">Vídeos das danças nos 3 telões</div>
         <div class="g2 center">
@@ -1556,6 +1572,55 @@ let screenMode = 'one'; try { screenMode = localStorage.getItem('lummi-screens')
 let vidMode = 'repeat'; try { vidMode = localStorage.getItem('lummi-vidmode') || 'repeat'; } catch(_){}
 function openCount(){ return Object.values(screens).filter(Boolean).length; }
 function slicing(){ return screenMode === 'pano' && openCount() > 1 && !recSize; }
+/* ===== formato do telão central (escalonado) ===== */
+const SHAPE_DEF = {on: false, h: 1, ar: 1.11, x: .5, y: .5, sh: .12, si: .09, guide: false};
+let SHAPE = Object.assign({}, SHAPE_DEF); try { Object.assign(SHAPE, JSON.parse(localStorage.getItem('lummi-shape') || '{}')); } catch(_){}
+SHAPE.guide = false;
+const shapeSave = () => { try { const c = Object.assign({}, SHAPE); delete c.guide; localStorage.setItem('lummi-shape', JSON.stringify(c)); } catch(_){} };
+function shapeBox(W, H){
+  let bh = SHAPE.h * H, bw = bh * SHAPE.ar;
+  if (bw > W){ bw = W; bh = bw / SHAPE.ar; }
+  return [SHAPE.x * (W - bw), SHAPE.y * (H - bh), bw, bh];
+}
+function shapePath(ctx, bx, by, bw, bh){
+  const i = SHAPE.si * bw, t = SHAPE.sh * bh;
+  ctx.beginPath();
+  ctx.moveTo(bx + i, by); ctx.lineTo(bx + bw - i, by); ctx.lineTo(bx + bw - i, by + t); ctx.lineTo(bx + bw, by + t);
+  ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx, by + bh); ctx.lineTo(bx, by + t); ctx.lineTo(bx + i, by + t); ctx.closePath();
+}
+/* desenha a imagem do telão central dentro do contorno escalonado */
+function drawShaped(sc, sx, sy, sw, sh){
+  const c = sc.ctx, W = sc.cv.width, H = sc.cv.height;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  const [bx, by, bw, bh] = shapeBox(W, H);
+  const ba = bw / bh, sa = sw / sh;           // “cobrir”: corta o que sobra da imagem, sem distorcer
+  let cx = sx, cy = sy, cw = sw, ch = sh;
+  if (sa > ba){ cw = sh * ba; cx = sx + (sw - cw) / 2; } else { ch = sw / ba; cy = sy + (sh - ch) / 2; }
+  c.save(); shapePath(c, bx, by, bw, bh); c.clip();
+  c.drawImage(cv, cx, cy, cw, ch, bx, by, bw, bh);
+  c.restore();
+  if (SHAPE.guide){
+    c.save(); c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = Math.max(1, W / 1200);
+    for (let k = 1; k < 10; k++){ c.beginPath(); c.moveTo(bx + bw * k / 10, by); c.lineTo(bx + bw * k / 10, by + bh); c.moveTo(bx, by + bh * k / 10); c.lineTo(bx + bw, by + bh * k / 10); c.stroke(); }
+    c.strokeStyle = '#fff'; c.lineWidth = Math.max(3, W / 400); shapePath(c, bx, by, bw, bh); c.stroke();
+    c.fillStyle = '#fff'; c.font = `600 ${Math.round(H / 28)}px system-ui, sans-serif`; c.textAlign = 'center';
+    c.fillText('AJUSTE: a linha branca deve bater com a borda do telão', bx + bw / 2, by + bh * .55);
+    c.restore();
+  }
+}
+function paintShape(){
+  document.getElementById('shp-rect')?.classList.toggle('on', !SHAPE.on);
+  document.getElementById('shp-step')?.classList.toggle('on', SHAPE.on);
+  const bx = document.getElementById('shpBox'); if (!bx) return; bx.hidden = !SHAPE.on; bx.style.display = SHAPE.on ? 'flex' : 'none';
+  const set = (id, v, txt) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; const t = document.getElementById(id + 'v'); if (t) t.textContent = txt; };
+  set('shpH', Math.round(SHAPE.h * 100), Math.round(SHAPE.h * 100) + '%');
+  set('shpAR', Math.round(SHAPE.ar * 100), SHAPE.ar.toFixed(2));
+  set('shpX', SHAPE.x * 100, Math.round(SHAPE.x * 100) + '%');
+  set('shpY', SHAPE.y * 100, Math.round(SHAPE.y * 100) + '%');
+  set('shpSH', SHAPE.sh * 100, (SHAPE.sh * 100).toFixed(1) + '%');
+  set('shpSI', SHAPE.si * 100, (SHAPE.si * 100).toFixed(1) + '%');
+  document.getElementById('shpGuide').checked = !!SHAPE.guide;
+}
 function refreshScreens(){
   for (const r in screens){ if (screens[r] && screens[r].win.closed) screens[r] = null; }
   const pr = screens.C || screens.L || screens.R;
@@ -2778,6 +2843,14 @@ function paintScreens(){
   if (st) st.textContent = screenMode === 'one' ? 'Só o telão central recebe a imagem.' : screenMode === 'mirror' ? 'Os telões abertos mostram a mesma imagem.' : (openCount() > 1 ? 'Imagem contínua: a Lummi fica no central, e o céu e os fundos se estendem pelos laterais. As posições “Esquerda” e “Direita” levam a Lummi para os telões laterais.' : 'Abra os 3 telões para a imagem contínua. Se o teatro usar um divisor de vídeo (uma tela só, bem larga), abra só o central.');
 }
 ['one','mirror','pano'].forEach(m => document.getElementById('sm-' + m).onclick = e => { screenMode = m; try { localStorage.setItem('lummi-screens', m); } catch(_){} paintScreens(); resize(); e.currentTarget.blur(); });
+document.getElementById('shp-rect').onclick = e => { SHAPE.on = false; shapeSave(); paintShape(); say('Telão central retangular.'); e.currentTarget.blur(); };
+document.getElementById('shp-step').onclick = e => { SHAPE.on = true; shapeSave(); paintShape(); say('Telão central escalonado: a imagem fica só dentro do contorno. Use “Mostrar contorno” para ajustar.'); e.currentTarget.blur(); };
+document.getElementById('shpGuide').onchange = e => { SHAPE.guide = e.target.checked; };
+[['shpH', 'h', 100], ['shpAR', 'ar', 100], ['shpX', 'x', 100], ['shpY', 'y', 100], ['shpSH', 'sh', 100], ['shpSI', 'si', 100]].forEach(([id, k, d]) => {
+  document.getElementById(id).oninput = e => { SHAPE[k] = +e.target.value / d; shapeSave(); paintShape(); };
+});
+document.getElementById('shpReset').onclick = e => { const g = SHAPE.guide; SHAPE = Object.assign({}, SHAPE_DEF, {on: true, guide: g}); shapeSave(); paintShape(); e.currentTarget.blur(); };
+paintShape();
 ['center','repeat'].forEach(m => document.getElementById('vm-' + m).onclick = e => { vidMode = m; try { localStorage.setItem('lummi-vidmode', m); } catch(_){} paintScreens(); say(m === 'center' ? 'Vídeos das danças só no telão central (com 3 telões no panorâmico).' : 'Vídeos das danças repetidos nos 3 telões.'); e.currentTarget.blur(); });
 ['L','C','R'].forEach(r => document.getElementById('scr-' + r).onclick = e => { openScreen(r); resize(); e.currentTarget.blur(); });
 
@@ -3249,7 +3322,8 @@ function frame(now){
     for (const r in screens){
       const sc = screens[r]; if (!sc) continue;
       if (sc.cv.width !== sw || sc.cv.height !== cv.height){ sc.cv.width = sw; sc.cv.height = cv.height; }
-      if (sl) sc.ctx.drawImage(cv, ROLE_I[r] * sw, 0, sw, cv.height, 0, 0, sw, cv.height); else sc.ctx.drawImage(cv, 0, 0);
+      if (SHAPE.on && r === 'C') drawShaped(sc, sl ? sw : 0, 0, sw, cv.height);
+      else if (sl) sc.ctx.drawImage(cv, ROLE_I[r] * sw, 0, sw, cv.height, 0, 0, sw, cv.height); else sc.ctx.drawImage(cv, 0, 0);
       if (blackA > .002){ sc.ctx.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); }
     }
   }
