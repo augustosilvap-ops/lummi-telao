@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 18:56</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 19:16</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -302,7 +302,7 @@ input[type=file]{display:none}
           <button id="qStars" title="Tira vídeo e fundo, deixa só o céu com a Lummi. A música continua (G)">✦ Só estrelas<kbd>G</kbd></button>
           <button id="qRepeat" title="Solta de novo o take que está no ar, do começo (U)">↺ Repetir take<kbd>U</kbd></button>
           <button id="qMusic" title="Para a música da dança e a trilha, com fade (X)">♪ Parar música<kbd>X</kbd></button>
-          <button id="qCam" title="Liga ou desliga a câmera nas telas laterais">📷 Câmera nas laterais</button>
+          <button id="qCam" title="Liga ou desliga as câmeras nas telas laterais">📷 Câmeras nas laterais</button>
           <button id="qPrev" title="O próximo take volta um (↑)">▲ Voltar 1<kbd>↑</kbd></button>
           <button id="qNext" title="Pula o próximo take (↓)">▼ Pular 1<kbd>↓</kbd></button>
         </div>
@@ -449,10 +449,9 @@ input[type=file]{display:none}
         </div>
         <div class="label" style="margin-top:6px">Transmissão nas telas laterais (câmera)</div>
         <p class="hint">Ligue o sinal das câmeras numa placa de captura USB no notebook. A imagem vai para as telas laterais; o Lummi fica na central.</p>
-        <div class="g2 center">
-          <button id="camPick">📷 Escolher a câmera / captura</button>
-          <select id="camSel" aria-label="Câmera"><option value="">(clique em escolher)</option></select>
-        </div>
+        <button id="camPick">📷 Procurar câmeras / entradas da DeckLink</button>
+        <label class="field">Tela da esquerda<select id="camSelL" aria-label="Câmera da tela esquerda"><option value="">(clique em procurar)</option></select></label>
+        <label class="field">Tela da direita<select id="camSelR" aria-label="Câmera da tela direita"><option value="">(clique em procurar)</option></select></label>
         <label class="check"><input type="checkbox" id="camOn"> Mostrar a câmera nas telas laterais</label>
         <label class="check"><input type="checkbox" id="camMirror"> Espelhar a imagem da câmera</label>
         <div class="label" style="margin-top:6px">Formato do telão central</div>
@@ -1606,36 +1605,52 @@ let screenMode = 'one'; try { screenMode = localStorage.getItem('lummi-screens')
 let vidMode = 'repeat'; try { vidMode = localStorage.getItem('lummi-vidmode') || 'repeat'; } catch(_){}
 function openCount(){ return Object.values(screens).filter(Boolean).length; }
 function slicing(){ return screenMode === 'pano' && !recSize && (RES.on ? !!screens.U : openCount() > 1); }
-/* ===== câmera (transmissão) nas telas laterais ===== */
-let CAM = {on: false, id: '', mirror: false}; try { Object.assign(CAM, JSON.parse(localStorage.getItem('lummi-cam') || '{}')); } catch(_){}
+/* ===== câmeras (transmissão) nas telas laterais: uma em cada lado ===== */
+let CAM = {on: false, idL: '', idR: 'same', mirror: false}; try { Object.assign(CAM, JSON.parse(localStorage.getItem('lummi-cam') || '{}')); } catch(_){}
+if (CAM.id && !CAM.idL) CAM.idL = CAM.id;
 const camSave = () => { try { localStorage.setItem('lummi-cam', JSON.stringify(CAM)); } catch(_){} };
-let camEl = null, camStream = null;
-const camReady = () => CAM.on && camEl && camEl.readyState >= 2 && camEl.videoWidth;
+const cams = {L: {el: null, stream: null}, R: {el: null, stream: null}};
+let camEl = null;   /* compatibilidade: elemento da esquerda */
+const camOf = side => side === 'R' && (!CAM.idR || CAM.idR === 'same' || CAM.idR === CAM.idL) ? cams.L : cams[side];
+const camReady = side => { if (!CAM.on) return false; const e = camOf(side || 'L').el; return !!(e && e.readyState >= 2 && e.videoWidth); };
 async function camList(){
-  const sel = document.getElementById('camSel'); if (!navigator.mediaDevices?.enumerateDevices) return;
+  if (!navigator.mediaDevices?.enumerateDevices) return;
   const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
-  sel.innerHTML = '';
-  if (!devs.length){ opt(sel, '', 'Nenhuma câmera encontrada', true); return; }
-  devs.forEach((d, i) => opt(sel, d.deviceId, d.label || `Câmera ${i + 1}`, d.deviceId === CAM.id));
-  if (!CAM.id || !devs.some(d => d.deviceId === CAM.id)){ CAM.id = devs[0].deviceId; sel.value = CAM.id; camSave(); }
+  const sl = document.getElementById('camSelL'), sr = document.getElementById('camSelR');
+  sl.innerHTML = ''; sr.innerHTML = '';
+  if (!devs.length){ opt(sl, '', 'Nenhuma câmera encontrada', true); opt(sr, '', 'Nenhuma câmera encontrada', true); return; }
+  opt(sr, 'same', 'A mesma da esquerda', CAM.idR === 'same' || !CAM.idR);
+  devs.forEach((d, i) => { const n = d.label || `Entrada ${i + 1}`; opt(sl, d.deviceId, n, d.deviceId === CAM.idL); opt(sr, d.deviceId, n, d.deviceId === CAM.idR); });
+  if (!CAM.idL || !devs.some(d => d.deviceId === CAM.idL)){ CAM.idL = devs[0].deviceId; sl.value = CAM.idL; }
+  if (CAM.idR !== 'same' && !devs.some(d => d.deviceId === CAM.idR)){ CAM.idR = devs[1] ? devs[1].deviceId : 'same'; sr.value = CAM.idR; }
+  camSave();
+}
+async function camOpen(side, id){
+  const c = cams[side];
+  if (c.stream) c.stream.getTracks().forEach(t => t.stop());
+  c.stream = await navigator.mediaDevices.getUserMedia({video: {deviceId: id ? {exact: id} : undefined, width: {ideal: 1920}, height: {ideal: 1080}, frameRate: {ideal: 30}}, audio: false});
+  if (!c.el){ c.el = document.createElement('video'); c.el.muted = true; c.el.playsInline = true; c.el.autoplay = true; }
+  c.el.srcObject = c.stream; vidHost().appendChild(c.el); c.el.play().catch(() => {});
+  const tr = c.stream.getVideoTracks()[0];
+  if (tr) tr.onended = () => say(`A câmera da ${side === 'L' ? 'esquerda' : 'direita'} foi desconectada. Reconecte e clique em “Câmera nas laterais”.`);
+  return tr ? tr.getSettings().deviceId : id;
 }
 async function camStart(){
   if (!navigator.mediaDevices?.getUserMedia){ say('Este navegador não deixa usar câmera aqui. Use o Google Chrome.'); return false; }
   try {
-    if (camStream) camStream.getTracks().forEach(t => t.stop());
-    camStream = await navigator.mediaDevices.getUserMedia({video: {deviceId: CAM.id ? {exact: CAM.id} : undefined, width: {ideal: 1920}, height: {ideal: 1080}, frameRate: {ideal: 30}}, audio: false});
-    if (!camEl){ camEl = document.createElement('video'); camEl.muted = true; camEl.playsInline = true; camEl.autoplay = true; }
-    camEl.srcObject = camStream; vidHost().appendChild(camEl); camEl.play().catch(() => {});
-    const tr = camStream.getVideoTracks()[0]; if (tr){ CAM.id = tr.getSettings().deviceId || CAM.id; camSave(); tr.onended = () => { say('A câmera foi desconectada. As laterais ficaram pretas: reconecte e clique em “Câmera nas laterais”.'); }; }
-    await camList();
+    if (!CAM.idL){ const t = await navigator.mediaDevices.getUserMedia({video: true}); t.getTracks().forEach(x => x.stop()); await camList(); }
+    CAM.idL = await camOpen('L', CAM.idL) || CAM.idL;
+    if (CAM.idR && CAM.idR !== 'same' && CAM.idR !== CAM.idL) await camOpen('R', CAM.idR);
+    else if (cams.R.stream){ cams.R.stream.getTracks().forEach(t => t.stop()); cams.R.stream = null; }
+    camEl = cams.L.el; camSave(); await camList();
     return true;
-  } catch(e){ say('Não consegui abrir a câmera: ' + (e && e.name === 'NotAllowedError' ? 'o Chrome bloqueou. Clique no ícone da câmera na barra de endereço e permita.' : 'veja se a placa de captura está ligada.')); return false; }
+  } catch(e){ say('Não consegui abrir a câmera: ' + (e && e.name === 'NotAllowedError' ? 'o Chrome bloqueou. Clique no ícone da câmera na barra de endereço e permita.' : e && e.name === 'NotReadableError' ? 'a entrada está em uso por outro programa (feche o Resolume/OBS).' : 'confira a placa de captura e o formato do sinal.')); return false; }
 }
-function camStop(){ if (camStream) camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+function camStop(){ ['L', 'R'].forEach(k => { const c = cams[k]; if (c.stream) c.stream.getTracks().forEach(t => t.stop()); c.stream = null; }); }
 async function camToggle(on){
   CAM.on = on; camSave();
-  if (on){ const ok = await camStart(); if (!ok){ CAM.on = false; camSave(); } else say('Câmera nas telas laterais.'); }
-  else { camStop(); say(screenMode === 'one' ? 'Câmera desligada: as laterais ficam pretas (modo “Só o central”).' : 'Câmera desligada: as laterais voltam a mostrar o Lummi.'); }
+  if (on){ const ok = await camStart(); if (!ok){ CAM.on = false; camSave(); } else say('Câmeras nas telas laterais.'); }
+  else { camStop(); say(screenMode === 'one' ? 'Câmeras desligadas: as laterais ficam pretas (modo “Só o central”).' : 'Câmeras desligadas: as laterais voltam a mostrar o Lummi.'); }
   paintCam();
 }
 function paintCam(){
@@ -1644,13 +1659,14 @@ function paintCam(){
   const m = document.getElementById('camMirror'); if (m) m.checked = CAM.mirror;
 }
 /* desenha a câmera (cobrindo) num retângulo */
-function camDraw(c, dx, dy, dw, dh){
-  const vw = camEl.videoWidth, vh = camEl.videoHeight, ba = dw / dh, sa = vw / vh;
+function camDraw(c, dx, dy, dw, dh, side){
+  const el = camOf(side || 'L').el;
+  const vw = el.videoWidth, vh = el.videoHeight, ba = dw / dh, sa = vw / vh;
   let sx = 0, sy = 0, sw = vw, sh = vh;
   if (sa > ba){ sw = vh * ba; sx = (vw - sw) / 2; } else { sh = vw / ba; sy = (vh - sh) / 2; }
   c.save();
   if (CAM.mirror){ c.translate(dx * 2 + dw, 0); c.scale(-1, 1); }
-  c.drawImage(camEl, sx, sy, sw, sh, dx, dy, dw, dh);
+  c.drawImage(el, sx, sy, sw, sh, dx, dy, dw, dh);
   c.restore();
 }
 /* ===== saída única: as 3 telas numa janela só (Resolume / processador de vídeo recorta) ===== */
@@ -1669,7 +1685,7 @@ function drawSingle(sc){
   ['L', 'C', 'R'].forEach(r => {
     const [x, y, w, h] = resRects(W, H)[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
     if (dw < 2 || dh < 2) return;
-    if (r !== 'C' && camReady()){ camDraw(c, dx, dy, dw, dh); }
+    if (r !== 'C' && camReady(r)){ camDraw(c, dx, dy, dw, dh, r); }
     else {
     if (!sl && screenMode === 'one' && r !== 'C') return;
     const sx = sl ? ROLE_I[r] * tw : 0;
@@ -2986,8 +3002,9 @@ document.getElementById('shpGuide').onchange = e => { SHAPE.guide = e.target.che
   document.getElementById(id).oninput = e => { SHAPE[k] = +e.target.value / d; shapeSave(); paintShape(); };
 });
 document.getElementById('shpReset').onclick = e => { const g = SHAPE.guide; SHAPE = Object.assign({}, SHAPE_DEF, {on: true, guide: g}); shapeSave(); paintShape(); e.currentTarget.blur(); };
-document.getElementById('camPick').onclick = async e => { e.currentTarget.blur(); const ok = await camStart(); if (ok){ CAM.on = true; camSave(); paintCam(); say('Câmera pronta nas laterais. Troque na lista se houver mais de uma.'); } };
-document.getElementById('camSel').onchange = async e => { CAM.id = e.target.value; camSave(); if (CAM.on) await camStart(); };
+document.getElementById('camPick').onclick = async e => { e.currentTarget.blur(); const ok = await camStart(); if (ok){ CAM.on = true; camSave(); paintCam(); say('Câmeras prontas. Escolha a entrada de cada lateral nas listas.'); } };
+document.getElementById('camSelL').onchange = async e => { CAM.idL = e.target.value; camSave(); if (CAM.on) await camStart(); };
+document.getElementById('camSelR').onchange = async e => { CAM.idR = e.target.value; camSave(); if (CAM.on) await camStart(); };
 document.getElementById('camOn').onchange = e => camToggle(e.target.checked);
 document.getElementById('camMirror').onchange = e => { CAM.mirror = e.target.checked; camSave(); };
 document.getElementById('qCam').onclick = e => { e.currentTarget.blur(); camToggle(!CAM.on); };
@@ -3314,7 +3331,7 @@ function vidHost(){
 }
 function rehomeVids(){
   const h = vidHost();
-  if (camEl && camEl.parentNode !== h){ h.appendChild(camEl); camEl.play().catch(() => {}); }
+  ['L', 'R'].forEach(k => { const e = cams[k].el; if (e && e.parentNode !== h){ h.appendChild(e); e.play().catch(() => {}); } });
   takes.forEach(tk => ['vel', 'vel2'].forEach(k => {
     const v = tk[k]; if (!v || v.parentNode === h) return;
     const was = !v.paused, t = v.currentTime; h.appendChild(v);
@@ -3477,7 +3494,7 @@ function frame(now){
       const sc = screens[r]; if (!sc) continue;
       if (r === 'U'){ const pw = Math.round(sc.win.innerWidth * (sc.win.devicePixelRatio || 1)), ph = Math.round(sc.win.innerHeight * (sc.win.devicePixelRatio || 1)); if (sc.cv.width !== pw || sc.cv.height !== ph){ sc.cv.width = pw; sc.cv.height = ph; } drawSingle(sc); if (blackA > .002){ sc.ctx.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; sc.ctx.fillRect(0, 0, pw, ph); } continue; }
       if (sc.cv.width !== sw || sc.cv.height !== cv.height){ sc.cv.width = sw; sc.cv.height = cv.height; }
-      if ((r === 'L' || r === 'R') && camReady()){ sc.ctx.fillStyle = '#000'; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); camDraw(sc.ctx, 0, 0, sc.cv.width, sc.cv.height); }
+      if ((r === 'L' || r === 'R') && camReady(r)){ sc.ctx.fillStyle = '#000'; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); camDraw(sc.ctx, 0, 0, sc.cv.width, sc.cv.height, r); }
       else if (SHAPE.on && r === 'C') drawShaped(sc, sl ? sw : 0, 0, sw, cv.height);
       else if (sl) sc.ctx.drawImage(cv, ROLE_I[r] * sw, 0, sw, cv.height, 0, 0, sw, cv.height); else sc.ctx.drawImage(cv, 0, 0);
       if (blackA > .002){ sc.ctx.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); }
