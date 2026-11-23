@@ -158,6 +158,8 @@ body.op .colA{flex-basis:400px}
 .lxNow.on{color:var(--gold)}
 #pSpeed{min-height:38px}
 #qBlack.on{background:#000;border-color:var(--stop);color:var(--stop)}
+#qCam.on{border-color:var(--live);color:var(--live)}
+#qCam{grid-column:1/-1}
 #qStars.on{border-color:var(--live);color:var(--live)}
 .faders{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .faders label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--ink-dim)}
@@ -262,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 18:50</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 18:56</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -300,6 +302,7 @@ input[type=file]{display:none}
           <button id="qStars" title="Tira vídeo e fundo, deixa só o céu com a Lummi. A música continua (G)">✦ Só estrelas<kbd>G</kbd></button>
           <button id="qRepeat" title="Solta de novo o take que está no ar, do começo (U)">↺ Repetir take<kbd>U</kbd></button>
           <button id="qMusic" title="Para a música da dança e a trilha, com fade (X)">♪ Parar música<kbd>X</kbd></button>
+          <button id="qCam" title="Liga ou desliga a câmera nas telas laterais">📷 Câmera nas laterais</button>
           <button id="qPrev" title="O próximo take volta um (↑)">▲ Voltar 1<kbd>↑</kbd></button>
           <button id="qNext" title="Pula o próximo take (↓)">▼ Pular 1<kbd>↓</kbd></button>
         </div>
@@ -444,6 +447,14 @@ input[type=file]{display:none}
           </table>
           <button id="resReset">Voltar para 3 partes iguais lado a lado</button>
         </div>
+        <div class="label" style="margin-top:6px">Transmissão nas telas laterais (câmera)</div>
+        <p class="hint">Ligue o sinal das câmeras numa placa de captura USB no notebook. A imagem vai para as telas laterais; o Lummi fica na central.</p>
+        <div class="g2 center">
+          <button id="camPick">📷 Escolher a câmera / captura</button>
+          <select id="camSel" aria-label="Câmera"><option value="">(clique em escolher)</option></select>
+        </div>
+        <label class="check"><input type="checkbox" id="camOn"> Mostrar a câmera nas telas laterais</label>
+        <label class="check"><input type="checkbox" id="camMirror"> Espelhar a imagem da câmera</label>
         <div class="label" style="margin-top:6px">Formato do telão central</div>
         <div class="g2 center">
           <button id="shp-rect">Retangular (16:9)</button>
@@ -1595,6 +1606,53 @@ let screenMode = 'one'; try { screenMode = localStorage.getItem('lummi-screens')
 let vidMode = 'repeat'; try { vidMode = localStorage.getItem('lummi-vidmode') || 'repeat'; } catch(_){}
 function openCount(){ return Object.values(screens).filter(Boolean).length; }
 function slicing(){ return screenMode === 'pano' && !recSize && (RES.on ? !!screens.U : openCount() > 1); }
+/* ===== câmera (transmissão) nas telas laterais ===== */
+let CAM = {on: false, id: '', mirror: false}; try { Object.assign(CAM, JSON.parse(localStorage.getItem('lummi-cam') || '{}')); } catch(_){}
+const camSave = () => { try { localStorage.setItem('lummi-cam', JSON.stringify(CAM)); } catch(_){} };
+let camEl = null, camStream = null;
+const camReady = () => CAM.on && camEl && camEl.readyState >= 2 && camEl.videoWidth;
+async function camList(){
+  const sel = document.getElementById('camSel'); if (!navigator.mediaDevices?.enumerateDevices) return;
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  sel.innerHTML = '';
+  if (!devs.length){ opt(sel, '', 'Nenhuma câmera encontrada', true); return; }
+  devs.forEach((d, i) => opt(sel, d.deviceId, d.label || `Câmera ${i + 1}`, d.deviceId === CAM.id));
+  if (!CAM.id || !devs.some(d => d.deviceId === CAM.id)){ CAM.id = devs[0].deviceId; sel.value = CAM.id; camSave(); }
+}
+async function camStart(){
+  if (!navigator.mediaDevices?.getUserMedia){ say('Este navegador não deixa usar câmera aqui. Use o Google Chrome.'); return false; }
+  try {
+    if (camStream) camStream.getTracks().forEach(t => t.stop());
+    camStream = await navigator.mediaDevices.getUserMedia({video: {deviceId: CAM.id ? {exact: CAM.id} : undefined, width: {ideal: 1920}, height: {ideal: 1080}, frameRate: {ideal: 30}}, audio: false});
+    if (!camEl){ camEl = document.createElement('video'); camEl.muted = true; camEl.playsInline = true; camEl.autoplay = true; }
+    camEl.srcObject = camStream; vidHost().appendChild(camEl); camEl.play().catch(() => {});
+    const tr = camStream.getVideoTracks()[0]; if (tr){ CAM.id = tr.getSettings().deviceId || CAM.id; camSave(); tr.onended = () => { say('A câmera foi desconectada. As laterais ficaram pretas: reconecte e clique em “Câmera nas laterais”.'); }; }
+    await camList();
+    return true;
+  } catch(e){ say('Não consegui abrir a câmera: ' + (e && e.name === 'NotAllowedError' ? 'o Chrome bloqueou. Clique no ícone da câmera na barra de endereço e permita.' : 'veja se a placa de captura está ligada.')); return false; }
+}
+function camStop(){ if (camStream) camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+async function camToggle(on){
+  CAM.on = on; camSave();
+  if (on){ const ok = await camStart(); if (!ok){ CAM.on = false; camSave(); } else say('Câmera nas telas laterais.'); }
+  else { camStop(); say(screenMode === 'one' ? 'Câmera desligada: as laterais ficam pretas (modo “Só o central”).' : 'Câmera desligada: as laterais voltam a mostrar o Lummi.'); }
+  paintCam();
+}
+function paintCam(){
+  document.getElementById('qCam')?.classList.toggle('on', CAM.on);
+  const c = document.getElementById('camOn'); if (c) c.checked = CAM.on;
+  const m = document.getElementById('camMirror'); if (m) m.checked = CAM.mirror;
+}
+/* desenha a câmera (cobrindo) num retângulo */
+function camDraw(c, dx, dy, dw, dh){
+  const vw = camEl.videoWidth, vh = camEl.videoHeight, ba = dw / dh, sa = vw / vh;
+  let sx = 0, sy = 0, sw = vw, sh = vh;
+  if (sa > ba){ sw = vh * ba; sx = (vw - sw) / 2; } else { sh = vw / ba; sy = (vh - sh) / 2; }
+  c.save();
+  if (CAM.mirror){ c.translate(dx * 2 + dw, 0); c.scale(-1, 1); }
+  c.drawImage(camEl, sx, sy, sw, sh, dx, dy, dw, dh);
+  c.restore();
+}
 /* ===== saída única: as 3 telas numa janela só (Resolume / processador de vídeo recorta) ===== */
 const RES_DEF = {on: false, sq: false, rects: {L: [0, 0, 1/3, 1], C: [1/3, 0, 1/3, 1], R: [2/3, 0, 1/3, 1]}, test: false};
 let RES = JSON.parse(JSON.stringify(RES_DEF)); try { const o = JSON.parse(localStorage.getItem('lummi-res') || '{}'); if (o.rects) RES.rects = o.rects; RES.on = !!o.on; RES.sq = !!o.sq; } catch(_){}
@@ -1611,10 +1669,13 @@ function drawSingle(sc){
   ['L', 'C', 'R'].forEach(r => {
     const [x, y, w, h] = resRects(W, H)[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
     if (dw < 2 || dh < 2) return;
+    if (r !== 'C' && camReady()){ camDraw(c, dx, dy, dw, dh); }
+    else {
     if (!sl && screenMode === 'one' && r !== 'C') return;
     const sx = sl ? ROLE_I[r] * tw : 0;
     if (SHAPE.on && r === 'C') drawShapedRect(c, sx, 0, tw, cv.height, dx, dy, dw, dh);
     else coverDraw(c, sx, 0, tw, cv.height, dx, dy, dw, dh);
+    }
     if (RES.test){
       c.save(); c.strokeStyle = r === 'C' ? '#ffd27a' : '#7ad0ff'; c.lineWidth = Math.max(3, W / 600); c.strokeRect(dx + 2, dy + 2, dw - 4, dh - 4);
       c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(dx + dw / 2 - dw * .3, dy + dh / 2 - dh * .08, dw * .6, dh * .16);
@@ -2925,6 +2986,13 @@ document.getElementById('shpGuide').onchange = e => { SHAPE.guide = e.target.che
   document.getElementById(id).oninput = e => { SHAPE[k] = +e.target.value / d; shapeSave(); paintShape(); };
 });
 document.getElementById('shpReset').onclick = e => { const g = SHAPE.guide; SHAPE = Object.assign({}, SHAPE_DEF, {on: true, guide: g}); shapeSave(); paintShape(); e.currentTarget.blur(); };
+document.getElementById('camPick').onclick = async e => { e.currentTarget.blur(); const ok = await camStart(); if (ok){ CAM.on = true; camSave(); paintCam(); say('Câmera pronta nas laterais. Troque na lista se houver mais de uma.'); } };
+document.getElementById('camSel').onchange = async e => { CAM.id = e.target.value; camSave(); if (CAM.on) await camStart(); };
+document.getElementById('camOn').onchange = e => camToggle(e.target.checked);
+document.getElementById('camMirror').onchange = e => { CAM.mirror = e.target.checked; camSave(); };
+document.getElementById('qCam').onclick = e => { e.currentTarget.blur(); camToggle(!CAM.on); };
+paintCam();
+if (CAM.on && navigator.permissions) navigator.permissions.query({name: 'camera'}).then(st => { if (st.state === 'granted') camStart(); else { CAM.on = false; paintCam(); } }).catch(() => { CAM.on = false; paintCam(); });
 document.getElementById('res-on').onclick = e => { RES.on = true; resSave(); paintRes(); paintScreens(); resize(); say('Saída única: clique em Telão (T) para abrir a janela com as 3 telas.'); e.currentTarget.blur(); };
 document.getElementById('res-off').onclick = e => { RES.on = false; resSave(); if (screens.U && !screens.U.win.closed) screens.U.win.close(); refreshScreens(); paintRes(); resize(); e.currentTarget.blur(); };
 document.getElementById('resTest').onchange = e => { RES.test = e.target.checked; };
@@ -3246,6 +3314,7 @@ function vidHost(){
 }
 function rehomeVids(){
   const h = vidHost();
+  if (camEl && camEl.parentNode !== h){ h.appendChild(camEl); camEl.play().catch(() => {}); }
   takes.forEach(tk => ['vel', 'vel2'].forEach(k => {
     const v = tk[k]; if (!v || v.parentNode === h) return;
     const was = !v.paused, t = v.currentTime; h.appendChild(v);
@@ -3408,7 +3477,8 @@ function frame(now){
       const sc = screens[r]; if (!sc) continue;
       if (r === 'U'){ const pw = Math.round(sc.win.innerWidth * (sc.win.devicePixelRatio || 1)), ph = Math.round(sc.win.innerHeight * (sc.win.devicePixelRatio || 1)); if (sc.cv.width !== pw || sc.cv.height !== ph){ sc.cv.width = pw; sc.cv.height = ph; } drawSingle(sc); if (blackA > .002){ sc.ctx.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; sc.ctx.fillRect(0, 0, pw, ph); } continue; }
       if (sc.cv.width !== sw || sc.cv.height !== cv.height){ sc.cv.width = sw; sc.cv.height = cv.height; }
-      if (SHAPE.on && r === 'C') drawShaped(sc, sl ? sw : 0, 0, sw, cv.height);
+      if ((r === 'L' || r === 'R') && camReady()){ sc.ctx.fillStyle = '#000'; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); camDraw(sc.ctx, 0, 0, sc.cv.width, sc.cv.height); }
+      else if (SHAPE.on && r === 'C') drawShaped(sc, sl ? sw : 0, 0, sw, cv.height);
       else if (sl) sc.ctx.drawImage(cv, ROLE_I[r] * sw, 0, sw, cv.height, 0, 0, sw, cv.height); else sc.ctx.drawImage(cv, 0, 0);
       if (blackA > .002){ sc.ctx.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); }
     }
