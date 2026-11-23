@@ -262,7 +262,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 18:38</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 18:44</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -430,6 +430,11 @@ input[type=file]{display:none}
         </div>
         <div id="resBox" hidden style="display:flex;flex-direction:column;gap:6px">
           <p class="hint">Uma janela só com as 3 telas lado a lado. Coloque essa janela na saída que vai para o Resolume ou para o processador e deixe em tela cheia. Ajuste abaixo onde fica cada tela dentro da imagem (em %), igual às “slices” do Resolume.</p>
+          <div class="g3 center">
+            <button id="resP-sq" title="O Lummi vai só para a tela central; as laterais ficam com a transmissão do Resolume">Só o central · quadrado (recomendado)</button>
+            <button id="resP-v">3 empilhadas · 1536×4608</button>
+            <button id="resP-h">3 lado a lado</button>
+          </div>
           <label class="check"><input type="checkbox" id="resTest"> Mostrar tela de teste (nome e borda de cada tela)</label>
           <table class="resT" style="width:100%;font-size:12px;border-collapse:collapse">
             <tr><th></th><th>x %</th><th>y %</th><th>largura %</th><th>altura %</th></tr>
@@ -1591,14 +1596,21 @@ let vidMode = 'repeat'; try { vidMode = localStorage.getItem('lummi-vidmode') ||
 function openCount(){ return Object.values(screens).filter(Boolean).length; }
 function slicing(){ return screenMode === 'pano' && !recSize && (RES.on ? !!screens.U : openCount() > 1); }
 /* ===== saída única: as 3 telas numa janela só (Resolume / processador de vídeo recorta) ===== */
-const RES_DEF = {on: false, rects: {L: [0, 0, 1/3, 1], C: [1/3, 0, 1/3, 1], R: [2/3, 0, 1/3, 1]}, test: false};
-let RES = JSON.parse(JSON.stringify(RES_DEF)); try { const o = JSON.parse(localStorage.getItem('lummi-res') || '{}'); if (o.rects) RES.rects = o.rects; RES.on = !!o.on; } catch(_){}
-const resSave = () => { try { localStorage.setItem('lummi-res', JSON.stringify({on: RES.on, rects: RES.rects})); } catch(_){} };
+const RES_DEF = {on: false, sq: false, rects: {L: [0, 0, 1/3, 1], C: [1/3, 0, 1/3, 1], R: [2/3, 0, 1/3, 1]}, test: false};
+let RES = JSON.parse(JSON.stringify(RES_DEF)); try { const o = JSON.parse(localStorage.getItem('lummi-res') || '{}'); if (o.rects) RES.rects = o.rects; RES.on = !!o.on; RES.sq = !!o.sq; } catch(_){}
+const resSave = () => { try { localStorage.setItem('lummi-res', JSON.stringify({on: RES.on, sq: RES.sq, rects: RES.rects})); } catch(_){} };
+/* retângulos reais (em frações da janela); “só o central quadrado”: um quadrado no meio, sem laterais */
+function resRects(W, H){
+  if (!RES.sq) return RES.rects;
+  const side = Math.min(W, H);
+  return {C: [(W - side) / 2 / W, (H - side) / 2 / H, side / W, side / H], L: [0, 0, 0, 0], R: [0, 0, 0, 0]};
+}
 function drawSingle(sc){
   const c = sc.ctx, W = sc.cv.width, H = sc.cv.height, sl = slicing(), tw = sl ? Math.floor(cv.width / 3) : cv.width;
   c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
   ['L', 'C', 'R'].forEach(r => {
-    const [x, y, w, h] = RES.rects[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
+    const [x, y, w, h] = resRects(W, H)[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
+    if (dw < 2 || dh < 2) return;
     if (!sl && screenMode === 'one' && r !== 'C') return;
     const sx = sl ? ROLE_I[r] * tw : 0;
     if (SHAPE.on && r === 'C') drawShapedRect(c, sx, 0, tw, cv.height, dx, dy, dw, dh);
@@ -1622,6 +1634,11 @@ function paintRes(){
   const box = document.getElementById('resBox'); if (box){ box.hidden = !RES.on; box.style.display = RES.on ? 'flex' : 'none'; }
   ['L', 'C', 'R'].forEach(r => [0, 1, 2, 3].forEach(k => { const el = document.getElementById(`res-${r}${k}`); if (el && document.activeElement !== el) el.value = +(RES.rects[r][k] * 100).toFixed(2); }));
   const t = document.getElementById('resTest'); if (t) t.checked = RES.test;
+  const isV = !RES.sq && RES.rects.C[1] > .3 && RES.rects.C[2] > .9;
+  document.getElementById('resP-sq')?.classList.toggle('on', RES.sq);
+  document.getElementById('resP-v')?.classList.toggle('on', isV);
+  document.getElementById('resP-h')?.classList.toggle('on', !RES.sq && !isV);
+  const tb = document.querySelector('.resT'); if (tb) tb.style.display = RES.sq ? 'none' : '';
   ['L', 'R'].forEach(r => { const b = document.getElementById('scr-' + r); if (b) b.style.display = RES.on ? 'none' : ''; });
   const bc = document.getElementById('scr-C'); if (bc) bc.textContent = RES.on ? (screens.U ? '✓ Saída única aberta' : 'Abrir a saída única') : (screens.C ? '✓ ' : 'Abrir ') + 'telão central';
 }
@@ -1705,7 +1722,7 @@ function resize(){
   else {
     const pop = popup && !popup.closed;
     [w, h] = outSize();
-    if (RES.on && screens.U && pop){ const rc = RES.rects.C; w = Math.max(64, w * rc[2]); h = Math.max(64, h * rc[3]); }
+    if (RES.on && screens.U && pop){ const rc = resRects(w, h).C; w = Math.max(64, w * rc[2]); h = Math.max(64, h * rc[3]); }
     if (!pop){ w = aw; h = ah; }
     const pDpr = pop ? (popup.devicePixelRatio || 1) : (devicePixelRatio || 1);
     const pw = slicing() ? pixelSize(w * 3, h, pDpr, 3) : pop || panel.hidden ? pixelSize(w, h, pDpr) : pixelSize(w, h, pDpr).map(v => Math.round(v * .75));
@@ -2911,7 +2928,11 @@ document.getElementById('res-on').onclick = e => { RES.on = true; resSave(); pai
 document.getElementById('res-off').onclick = e => { RES.on = false; resSave(); if (screens.U && !screens.U.win.closed) screens.U.win.close(); refreshScreens(); paintRes(); resize(); e.currentTarget.blur(); };
 document.getElementById('resTest').onchange = e => { RES.test = e.target.checked; };
 ['L', 'C', 'R'].forEach(r => [0, 1, 2, 3].forEach(k => { document.getElementById(`res-${r}${k}`).oninput = e => { const v = parseFloat(e.target.value); if (!isNaN(v)){ RES.rects[r][k] = Math.max(0, Math.min(100, v)) / 100; resSave(); resize(); } }; }));
-document.getElementById('resReset').onclick = e => { RES.rects = JSON.parse(JSON.stringify(RES_DEF.rects)); resSave(); paintRes(); resize(); e.currentTarget.blur(); };
+const resPreset = (sq, rects, msg) => { RES.sq = sq; if (rects) RES.rects = rects; resSave(); paintRes(); resize(); say(msg); };
+document.getElementById('resP-sq').onclick = e => { resPreset(true, null, 'Saída única: só a tela central, em quadrado. No Resolume, ponha essa fonte na slice da tela central; as laterais seguem com a transmissão.'); if (screenMode !== 'one'){ screenMode = 'one'; try { localStorage.setItem('lummi-screens', 'one'); } catch(_){} paintScreens(); } e.currentTarget.blur(); };
+document.getElementById('resP-v').onclick = e => { resPreset(false, {L: [0, 0, 1, 1/3], C: [0, 1/3, 1, 1/3], R: [0, 2/3, 1, 1/3]}, '3 telas empilhadas (1536×4608): esquerda em cima, central no meio, direita embaixo. Confira a ordem com a tela de teste.'); e.currentTarget.blur(); };
+document.getElementById('resP-h').onclick = e => { resPreset(false, JSON.parse(JSON.stringify(RES_DEF.rects)), '3 telas lado a lado.'); e.currentTarget.blur(); };
+document.getElementById('resReset').onclick = e => { RES.sq = false; RES.rects = JSON.parse(JSON.stringify(RES_DEF.rects)); resSave(); paintRes(); resize(); e.currentTarget.blur(); };
 paintRes();
 paintShape();
 ['center','repeat'].forEach(m => document.getElementById('vm-' + m).onclick = e => { vidMode = m; try { localStorage.setItem('lummi-vidmode', m); } catch(_){} paintScreens(); say(m === 'center' ? 'Vídeos das danças só no telão central (com 3 telões no panorâmico).' : 'Vídeos das danças repetidos nos 3 telões.'); e.currentTarget.blur(); });
