@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 19:16</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 19:27</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -476,6 +476,14 @@ input[type=file]{display:none}
           <button id="vm-repeat">Repetir nos 3</button>
         </div>
         <p class="hint" id="screenStatus" style="color:var(--ink)"></p>
+        <div class="label" style="margin-top:8px">Guardar os ajustes dos telões</div>
+        <p class="hint">Os cortes, o formato do central, as câmeras e os modos já ficam guardados sozinhos <b>neste computador</b>. Para levar para outro computador, baixe o arquivo e carregue lá, ou copie e mande para o Claude deixar como padrão do programa.</p>
+        <div class="g3 center">
+          <button id="setDown">💾 Baixar arquivo de ajustes</button>
+          <button id="setUp">📂 Carregar arquivo de ajustes</button>
+          <button id="setCopy">📋 Copiar ajustes</button>
+        </div>
+        <input type="file" id="setFile" accept=".json,application/json" hidden>
         <p class="hint">Cada telão é uma janela: abra, arraste para o projetor dele e clique em “Tela cheia” em cada uma. O notebook precisa ter as saídas de vídeo (ou um adaptador) para os projetores. Se os 3 projetores já estiverem ligados num mesmo sinal, use “Só o central”.</p>
       </div>
     </details>
@@ -556,6 +564,10 @@ input[type=file]{display:none}
 <script>
 (() => {
 /* ================= WebGL ================= */
+/* ajustes padrão dos telões (gravados no programa): valem quando este computador ainda não tem os seus */
+const SET_KEYS = ['lummi-res', 'lummi-shape', 'lummi-screens', 'lummi-vidmode', 'lummi-qual', 'lummi-route', 'lummi-lx', 'lummi-cam'];
+const DEFSET = null;
+try { if (DEFSET) for (const k in DEFSET) if (SET_KEYS.includes(k) && localStorage.getItem(k) === null) localStorage.setItem(k, DEFSET[k]); } catch(_){}
 const cv = document.getElementById('c');
 const gl = cv.getContext('webgl', {antialias: false, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance'});
 if (!gl) document.getElementById('nogl').hidden = false;
@@ -3010,6 +3022,31 @@ document.getElementById('camMirror').onchange = e => { CAM.mirror = e.target.che
 document.getElementById('qCam').onclick = e => { e.currentTarget.blur(); camToggle(!CAM.on); };
 paintCam();
 if (CAM.on && navigator.permissions) navigator.permissions.query({name: 'camera'}).then(st => { if (st.state === 'granted') camStart(); else { CAM.on = false; paintCam(); } }).catch(() => { CAM.on = false; paintCam(); });
+function settingsNow(){ const o = {}; SET_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch(_){} }); return o; }
+document.getElementById('setDown').onclick = async e => {
+  e.currentTarget.blur();
+  const data = JSON.stringify({lummi: 'ajustes-dos-teloes', salvo: new Date().toLocaleString('pt-BR'), ajustes: settingsNow()}, null, 2);
+  const name = 'lummi-ajustes-teloes.json';
+  try { if (window.claude && claude.use){ const d = await claude.use('downloads'); if (d){ await d.save({filename: name, data}); say('Arquivo de ajustes salvo.'); return; } } } catch(_){}
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type: 'application/json'})); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  say('Arquivo “lummi-ajustes-teloes.json” baixado. Guarde junto com a pasta do show.');
+};
+document.getElementById('setUp').onclick = e => { e.currentTarget.blur(); document.getElementById('setFile').click(); };
+document.getElementById('setFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text()), aj = j.ajustes || j;
+    let n = 0; for (const k in aj) if (SET_KEYS.includes(k)){ localStorage.setItem(k, aj[k]); n++; }
+    if (!n) throw new Error('vazio');
+    say('Ajustes carregados. Recarregando…'); setTimeout(() => location.reload(), 700);
+  } catch(_){ say('Esse arquivo não é de ajustes do Lummi.'); }
+};
+document.getElementById('setCopy').onclick = async e => {
+  e.currentTarget.blur();
+  const txt = 'AJUSTES LUMMI ' + JSON.stringify(settingsNow());
+  try { await navigator.clipboard.writeText(txt); say('Ajustes copiados. Cole na conversa com o Claude para virar o padrão do programa.'); }
+  catch(_){ prompt('Copie o texto abaixo e mande para o Claude:', txt); }
+};
 document.getElementById('res-on').onclick = e => { RES.on = true; resSave(); paintRes(); paintScreens(); resize(); say('Saída única: clique em Telão (T) para abrir a janela com as 3 telas.'); e.currentTarget.blur(); };
 document.getElementById('res-off').onclick = e => { RES.on = false; resSave(); if (screens.U && !screens.U.win.closed) screens.U.win.close(); refreshScreens(); paintRes(); resize(); e.currentTarget.blur(); };
 document.getElementById('resTest').onchange = e => { RES.test = e.target.checked; };
