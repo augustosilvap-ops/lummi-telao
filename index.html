@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 19:27</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 23/11 19:44</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -470,7 +470,7 @@ input[type=file]{display:none}
           <label class="field">Recuo do degrau (cada lado) <span class="val" id="shpSIv"></span><input type="range" id="shpSI" min="0" max="30" step="0.5"></label>
           <button id="shpReset">Voltar ao formato da foto</button>
         </div>
-        <div class="label" style="margin-top:6px">Vídeos das danças nos 3 telões</div>
+        <div class="label" style="margin-top:6px">Vídeos e fundos das danças nos 3 telões (panorâmico)</div>
         <div class="g2 center">
           <button id="vm-center">Só no central</button>
           <button id="vm-repeat">Repetir nos 3</button>
@@ -591,7 +591,9 @@ float balLum(vec2 uv){ return dot(texture2D(uBalTex, uv).rgb, vec3(.3, .59, .11)
 float balMask(vec2 uv){ float l = balLum(uv); return uBalInv > .5 ? smoothstep(.62, .38, l) : smoothstep(.04, .2, l); }
 uniform sampler2D uVid;
 uniform vec2 uVidSc;
-uniform float uVidMode, uVidMix;
+uniform float uVidMode, uVidMix, uBgRep;
+/* fundo animado repetido em cada telão (panorâmico + “repetir nos 3”) */
+vec2 bgP(vec2 p){ if (uBgRep < .5) return p; float a = uRes.x / uRes.y; return vec2((fract(gl_FragCoord.x / uRes.x * 3.) - .5) * a / 3., p.y); }
 uniform sampler2D uVidPrev;
 /* vídeo cobrindo a tela inteira; no panorâmico: 1 = só no telão central, 2 = repetido nos 3 */
 vec4 vidSample(){
@@ -1275,7 +1277,7 @@ void main(){
   vec2 p = (gl_FragCoord.xy - .5*uRes) / uRes.y;
   if (uBgA > .995){
     vec2 lp = vec2(p.x * .889 / (uScrW*.5), p.y);
-    vec3 raw = danceAll(p);
+    vec3 raw = danceAll(bgP(p));
     bool bright = (uBgM > 32.5 && uBgM < 33.5) || (uBgM > 41.5 && uBgM < 42.5) || uBgM > 45.5;
     vec3 cb = bright ? raw : aces(raw * 1.05) * (1. - .25*dot(lp, lp));
     if (uVidA > .001){ vec4 vs = vidSample(); cb = mix(cb, vs.rgb, uVidA*vs.a); }
@@ -1480,7 +1482,7 @@ void main(){
     col += mix(vec3(1., .93, .8), pastel(fi/6. + uT*.03), .55) * g * tw3 * depth * uColor * min(I, 1.2) * .8;
   }
 
-  if (uBgA > .001) col = mix(col, danceAll(p), uBgA);
+  if (uBgA > .001) col = mix(col, danceAll(bgP(p)), uBgA);
 
   /* onda de luz nos momentos fortes */
   col += mix(lc, vec3(1.), .45) * exp(-abs(r - uRingR) / (.004 + uRingR*.035)) * uRingA;
@@ -1494,7 +1496,7 @@ void main(){
   gl_FragColor = vec4(clamp(col, 0., 1.), 1.);
 }`;
 
-const UNAMES = ['uRes','uC','uWind','uT','uF','uI','uS','uHaze','uRays','uFil','uWarm','uMotes','uVoice','uStars','uColor','uShoot','uShootA','uWings','uFlame','uSwirl','uFlap','uSpin','uRingR','uRingA','uSpot','uFlash','uBal','uBalA','uBalS','uVid','uVidA','uVidSc','uDust','uTrail','uBalTex','uBalVid','uBalInv','uBalRect','uBgM','uBgA','uBgT','uBeat','uProg','uBgG','uScrW','uTxt','uVidMode','uVidMix','uVidPrev'];
+const UNAMES = ['uRes','uC','uWind','uT','uF','uI','uS','uHaze','uRays','uFil','uWarm','uMotes','uVoice','uStars','uColor','uShoot','uShootA','uWings','uFlame','uSwirl','uFlap','uSpin','uRingR','uRingA','uSpot','uFlash','uBal','uBalA','uBalS','uVid','uVidA','uVidSc','uDust','uTrail','uBalTex','uBalVid','uBalInv','uBalRect','uBgM','uBgA','uBgT','uBeat','uProg','uBgG','uScrW','uTxt','uVidMode','uVidMix','uVidPrev','uBgRep'];
 function makeTxtTex(g, unit){
   const cvs = document.createElement('canvas'); cvs.width = 2048; cvs.height = 1024; const x = cvs.getContext('2d');
   x.fillStyle = '#000'; x.fillRect(0, 0, 2048, 1024);
@@ -2786,6 +2788,11 @@ function warmVoices(){
     const t = takes[i]; if (!t || !t.audio || t.kind === 'video') continue;
     const el = elFor(t); if (el.preload !== 'auto'){ el.preload = 'auto'; el.load(); }
   }
+  /* o vídeo da próxima dança também já fica carregado no primeiro quadro */
+  for (let i = nextIdx; i < Math.min(takes.length, nextIdx + 2); i++){
+    const t = takes[i]; if (!t || t.kind !== 'video' || !t.vid) continue;
+    const v = vidEl(t); if (!v.__warm){ v.__warm = true; v.preload = 'auto'; v.load(); }
+  }
 }
 function endTake(){
   if (playing && playing.cues) while (playing.ci < playing.cues.length) runCue(playing.cues[playing.ci++]);
@@ -3420,15 +3427,15 @@ function frame(now){
     const v2 = vidEl(playing, true); if (activeVid) activeVid.pause();
     v2.currentTime = 0; v2.play().catch(() => {}); activeVid = v2; vidTarget = 1; vidSwap = 0; renderTakes();
   }
-  vidA += (vidTarget - vidA) * (1 - Math.exp(-dt / .35));
+  vidA += (vidTarget - vidA) * (1 - Math.exp(-dt / .11));
   if (playing && playing.kind === 'video' && playing.bg2 && !playing.vid && !playing._bgSwapped){
     const da = playing._del, pr = da && danceEl === da && da.duration ? (playing.swapAt ? da.currentTime / Math.min(playing.swapAt * 2, da.duration * 2) * 1 : da.currentTime / da.duration) : (now - playing.start) / 1000 / 150;
     if (pr >= .5){ playing._bgSwapped = true; bgNext = playing.bg2; say(`Segunda metade: ${bgName(playing.bg2)}.`); }
   }
-  if (bgNext && bgNext !== bgM && bgA < .03){ bgM = bgNext; bgStart = now; bgClock = 0; }
+  if (bgNext && bgNext !== bgM && bgA < .12){ bgM = bgNext; bgStart = now; bgClock = 0; }
   bgClock += dt * bgSpd;
   if (bgNext && bgNext === bgM && bgA < .03 && bgStart === 0) bgStart = now;
-  bgA += ((bgNext && bgNext === bgM ? 1 : 0) - bgA) * (1 - Math.exp(-dt / .55));
+  bgA += ((bgNext && bgNext === bgM ? 1 : 0) - bgA) * (1 - Math.exp(-dt / .16));
   if (bgA < .003 && !bgNext) bgStart = 0;
   if (danceEl && danceAn && !danceEl.paused){
     danceAn.getByteFrequencyData(dbuf);
@@ -3522,7 +3529,7 @@ function frame(now){
     }
     gl.uniform1f(U.uBgA, haveSt || !wantSt ? bgA : 0); gl.uniform1f(U.uBgM, bgM % 100); gl.uniform1f(U.uBgG, Math.floor(bgM / 100)); gl.uniform1f(U.uBgT, bgStart ? bgClock : 0); gl.uniform1f(U.uBeat, beat);
     gl.uniform1f(U.uProg, danceEl && danceEl.duration ? danceEl.currentTime / danceEl.duration : Math.min(1, bgStart ? (now - bgStart) / 1000 / 200 : 0));
-    gl.uniform1f(U.uVidA, vidA); gl.uniform1f(U.uVidMode, slicing() ? (vidMode === 'center' ? 1 : 2) : 0); gl.uniform2f(U.uVidSc, vidSc[0], vidSc[1]);
+    gl.uniform1f(U.uVidA, vidA); gl.uniform1f(U.uVidMode, slicing() ? (vidMode === 'center' ? 1 : 2) : 0); gl.uniform1f(U.uBgRep, slicing() && vidMode === 'repeat' ? 1 : 0); gl.uniform2f(U.uVidSc, vidSc[0], vidSc[1]);
     gl.uniform1f(U.uSpin, spinAng); gl.uniform1f(U.uRingR, .03 + ringAge * .55 * cur.s); gl.uniform1f(U.uRingA, ringAmt * .55 * Math.exp(-ringAge * 1.6));
     gl.uniform4f(U.uShoot, sx, sy, shoot ? shoot.dx : 1, shoot ? shoot.dy : 0); gl.uniform1f(U.uShootA, shootA);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
