@@ -150,6 +150,11 @@ body.op .colA{flex-basis:400px}
 .quick .qgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .quick .qgrid button{min-height:44px;padding:6px 8px;justify-content:space-between;font-size:14px}
 .quick .qgrid button kbd{font-size:10px}
+#lxBtns button{min-height:42px;justify-content:flex-start;font-size:13px;text-align:left}
+#lxBtns button.on{border-color:var(--gold);background:rgba(240,192,112,.16)}
+.lxNow{margin-top:8px;font-size:12px;color:var(--ink-dim)}
+.lxNow.on{color:var(--gold)}
+#pSpeed{min-height:38px}
 #qBlack.on{background:#000;border-color:var(--stop);color:var(--stop)}
 #qStars.on{border-color:var(--live);color:var(--live)}
 .faders{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
@@ -285,6 +290,7 @@ input[type=file]{display:none}
           <button id="stop" title="Parar (Esc)">Parar<kbd>Esc</kbd></button>
         </div>
       </div>
+      <select id="pSpeed" hidden aria-label="Velocidade do vídeo no ar" title="Velocidade do vídeo que está no ar"></select>
       <div class="quick" aria-label="Correção rápida">
         <div class="label">Correção rápida</div>
         <div class="qgrid">
@@ -295,6 +301,7 @@ input[type=file]{display:none}
           <button id="qPrev" title="O próximo take volta um (↑)">▲ Voltar 1<kbd>↑</kbd></button>
           <button id="qNext" title="Pula o próximo take (↓)">▼ Pular 1<kbd>↓</kbd></button>
         </div>
+        <div class="lxNow" id="lxNow">Luz: automática desligada</div>
         <div class="faders">
           <label>Música<input type="range" id="fDance" min="0" max="150" value="100"></label>
           <label>Trilha<input type="range" id="fTrk" min="0" max="160" value="100"></label>
@@ -325,6 +332,22 @@ input[type=file]{display:none}
     <details id="moreBox">
       <summary>⚙ Ajustes e ferramentas</summary>
       <div class="inner">
+    <details id="lightBox" open>
+      <summary>💡 Luz · mesa ou programa de iluminação</summary>
+      <div class="dbody">
+        <p class="hint">Cada take já manda a cena de luz certa (8 cenas, abaixo). Você grava as 8 cenas no seu programa ou mesa e liga cada uma a um botão de teste daqui. Isso é feito uma vez só.</p>
+        <label class="field">1. Seu programa ou mesa<select id="lxProg">
+          <option value="qlc">QLC+ (Windows)</option><option value="qlcmac">QLC+ (Mac)</option><option value="free">Freestyler DMX</option>
+          <option value="lightkey">Lightkey (Mac)</option><option value="magicq">Chamsys MagicQ</option><option value="desk">Mesa física com entrada MIDI</option><option value="other">Outro programa / não sei</option></select></label>
+        <div class="g2 center"><button id="lxConnect">2. Conectar MIDI</button><select id="lxOut" aria-label="Saída MIDI"><option value="">(conecte primeiro)</option></select></div>
+        <label class="field">Tipo de comando<select id="lxMode"><option value="note">Nota MIDI (canal 1) — recomendado</option><option value="pc">Program Change (canal 1)</option></select></label>
+        <label class="check"><input type="checkbox" id="lxOn"> 3. Mandar a luz junto com cada take (automático)</label>
+        <div class="label">Testar / soltar cena de luz na mão</div>
+        <div class="g2 lxBtns" id="lxBtns"></div>
+        <div class="label">Como ligar no seu programa</div>
+        <ol class="hint" id="lxGuide" style="padding-left:18px;display:flex;flex-direction:column;gap:4px"></ol>
+      </div>
+    </details>
     <section>
       <div class="label">Onde a Lummi está<span class="val" id="posLabel">centro</span></div>
       <div class="g3 center">
@@ -1967,7 +1990,7 @@ function dbAll(store){
 function dbGet(store, id){ return new Promise(res => { if (!db) return res(null); try { const rq = db.transaction(store).objectStore(store).get(id); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => res(null); } catch(_){ res(null); } }); }
 function dbPut(store, v){ if (!db) return; try { db.transaction(store, 'readwrite').objectStore(store).put(v); } catch(_){} }
 function dbDel(store, id){ if (!db) return; try { db.transaction(store, 'readwrite').objectStore(store).delete(id); } catch(_){} }
-function save(tk){ dbPut('takes', {id: tk.id, order: takes.indexOf(tk), group: tk.group || '', name: tk.name, scene: tk.scene, pos: tk.pos || 0, trk: tk.trk || 'keep', dur: tk.dur, audio: tk.audio || null, audioName: tk.audioName || '', cues: tk.cues || [], hold: !!tk.hold, kind: tk.kind || '', vid: tk.vid || null, vidName: tk.vidName || '', vsound: !!tk.vsound, loop: tk.loop !== false, dn: tk.dn || 0, mkey: tk.mkey || '', mn: tk.mn || '', bg: tk.bg || 0, bg2: tk.bg2 || 0, bgs: tk.bgs || 1, vspd: tk.vspd || 1, two: !!tk.two, swapAt: tk.swapAt || 0, vf: tk.vf || '', vf2: tk.vf2 || '', vfDone: tk.vfDone || '', vf2Done: tk.vf2Done || '', vid2: tk.vid2 || null, vid2Name: tk.vid2Name || '', daud: tk.daud || null, daudName: tk.daudName || '', q: tk.q || '', bv: tk.bv || 0, example: !!tk.example}); }
+function save(tk){ dbPut('takes', {id: tk.id, order: takes.indexOf(tk), group: tk.group || '', name: tk.name, scene: tk.scene, pos: tk.pos || 0, trk: tk.trk || 'keep', dur: tk.dur, audio: tk.audio || null, audioName: tk.audioName || '', cues: tk.cues || [], hold: !!tk.hold, kind: tk.kind || '', vid: tk.vid || null, vidName: tk.vidName || '', vsound: !!tk.vsound, loop: tk.loop !== false, dn: tk.dn || 0, mkey: tk.mkey || '', mn: tk.mn || '', bg: tk.bg || 0, bg2: tk.bg2 || 0, bgs: tk.bgs || 1, vspd: tk.vspd || 1, two: !!tk.two, vspdSet: !!tk.vspdSet, swapAt: tk.swapAt || 0, vf: tk.vf || '', vf2: tk.vf2 || '', vfDone: tk.vfDone || '', vf2Done: tk.vf2Done || '', vid2: tk.vid2 || null, vid2Name: tk.vid2Name || '', daud: tk.daud || null, daudName: tk.daudName || '', q: tk.q || '', bv: tk.bv || 0, example: !!tk.example}); }
 function saveAll(){ takes.forEach(save); }
 
 const trkName = id => id === 'keep' || !id ? '' : id === 'stop' ? 'sem trilha' : (trackById(id)?.n || '');
@@ -2238,6 +2261,24 @@ function setVid(tk, f){
   if (tk.vel){ tk.vel.pause(); if (activeVid === tk.vel){ activeVid = null; vidTarget = 0; } tk.vel = null; }
   tk.vid = f; tk.vidName = f.name.replace(/\.[^.]+$/, ''); save(tk);
 }
+const SPEEDS = [1, .9, .8, .7, .65, .6, .5, .4, .3, .2, .1];
+function fillSpeeds(sp, tk, pre){
+  sp.innerHTML = '';
+  const cur = tk.vspd || 1, list = SPEEDS.includes(cur) ? SPEEDS : [...SPEEDS, cur].sort((a, b) => b - a);
+  list.forEach(v => opt(sp, v, pre + Math.round(v * 100) + '%' + (v === 1 ? ' (normal)' : ''), Math.abs(cur - v) < .001));
+}
+function setSpeed(tk, v){
+  tk.vspd = v; tk.vspdSet = true;
+  [tk.vel, tk.vel2].forEach(el => { if (el) el.defaultPlaybackRate = el.playbackRate = v; });
+  if (playing === tk && tk.vid && tk._del && danceEl === tk._del) syncVidTo(tk._del.currentTime);
+  save(tk); paintSpeed(); renderVids();
+  say(`Velocidade do vídeo de “${tk.name.split(' · ')[0]}”: ${Math.round(v * 100)}%.`);
+}
+function paintSpeed(){
+  const sp = document.getElementById('pSpeed'); if (!sp) return;
+  const tk = playing && playing.kind === 'video' && playing.vid ? playing : null;
+  sp.hidden = !tk; if (tk) fillSpeeds(sp, tk, 'Vídeo ');
+}
 function renderVids(){
   const box = document.getElementById('vidList'); if (!box) return;
   box.innerHTML = '';
@@ -2259,8 +2300,8 @@ function renderVids(){
     r.append(ch, mu, sd); box.appendChild(r);
     const row3 = document.createElement('div'); row3.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-2px 0 6px';
     const sp = document.createElement('select'); sp.id = 'vs-' + tk.id; sp.setAttribute('aria-label', 'Velocidade do vídeo'); sp.style.cssText = 'width:auto;flex:1 1 180px';
-    [[1, 'normal'], [.8, '80% (um pouco mais lento)'], [.65, '65% (mais lento)'], [.5, '50% (bem lento)'], [.4, '40% (muito lento)']].forEach(([v, n]) => opt(sp, v, 'Velocidade do vídeo: ' + n, Math.abs((tk.vspd || 1) - v) < .01));
-    sp.onchange = () => { tk.vspd = +sp.value; [tk.vel, tk.vel2].forEach(v => { if (v) v.defaultPlaybackRate = v.playbackRate = tk.vspd; }); save(tk); };
+    fillSpeeds(sp, tk, 'Velocidade do vídeo: ');
+    sp.onchange = () => setSpeed(tk, +sp.value);
     row3.appendChild(sp);
     if (tk.two || tk.vid2){
       const v2 = document.createElement('button'); v2.textContent = tk.vid2 ? '🎬 2º vídeo: ' + tk.vid2Name : '🎬 2º vídeo (2ª metade da música)';
@@ -2419,6 +2460,7 @@ function fire(j){
   const tk = takes[j]; if (!tk) return;
   if (starsOnly){ starsOnly = false; qStars.classList.remove('on'); }
   paused = false; paintPause();
+  if (LX.on){ const lk = lookFor(tk); if (lk !== lxLast) setTimeout(() => sendLook(lk), 0); }
   stopDance(2);
   bgNext = tk.kind === 'video' && !tk.vid ? (tk.bg || 0) : 0; bgSpd = tk.bgs || 1; tk._bgSwapped = false;
   if (tk.kind === 'video'){
@@ -2525,6 +2567,7 @@ function setPaused(p){
   paintPause(); updateNow();
 }
 function paintPause(){ pPause.firstChild.textContent = paused ? 'Seguir' : 'Pausar'; pPause.classList.toggle('on', paused); }
+document.getElementById('pSpeed').onchange = e => { if (playing) setSpeed(playing, +e.target.value); e.target.blur(); };
 document.getElementById('pStart').onclick = e => { seekTo(0); e.currentTarget.blur(); };
 document.getElementById('pBack').onclick = e => { seekBy(-10); e.currentTarget.blur(); };
 document.getElementById('pFwd').onclick = e => { seekBy(10); e.currentTarget.blur(); };
@@ -2537,6 +2580,7 @@ pPause.onclick = e => { setPaused(!paused); e.currentTarget.blur(); };
   npSeek.addEventListener('pointercancel', () => { seeking = false; });
 }
 function updateNow(){
+  if (updateNow._p !== playing){ updateNow._p = playing; paintSpeed(); }
   const m = curMedia(), md = m && m.el.duration || 0;
   npSeek.classList.toggle('off', !md);
   npTime.textContent = md ? `${fmt(m.el.currentTime || 0)} / ${fmt(md)}` : '';
@@ -2689,6 +2733,104 @@ function paintScreens(){
 ['center','repeat'].forEach(m => document.getElementById('vm-' + m).onclick = e => { vidMode = m; try { localStorage.setItem('lummi-vidmode', m); } catch(_){} paintScreens(); say(m === 'center' ? 'Vídeos das danças só no telão central (com 3 telões no panorâmico).' : 'Vídeos das danças repetidos nos 3 telões.'); e.currentTarget.blur(); });
 ['L','C','R'].forEach(r => document.getElementById('scr-' + r).onclick = e => { openScreen(r); resize(); e.currentTarget.blur(); });
 
+/* ===== luz: 8 cenas mandadas por MIDI para o programa/mesa de iluminação ===== */
+const LOOKS = ['', 'Blackout (tudo apagado)', 'Clara sozinha (foco nela)', 'Conversa Lummi e Clara (luz suave quente)', 'Dança infantil / ballet (colorida e alegre)',
+  'Dança jazz / adultas / GR (luz de show)', 'Coral (palco aberto)', 'Momento espiritual (oração, apelo, revelação)', 'Final (tudo aceso, glória)'];
+function lookFor(tk){
+  const j = takes.indexOf(tk), n = tk.name || '';
+  if (tk.lx) return tk.lx;
+  if (tk.kind === 'video'){
+    if (/^Dança Clara/.test(n)) return 2;
+    if (/^Encerramento/.test(n)) return 8;
+    if (/^Coral/.test(n)) return 6;
+    return /INF|Ballet|Bailarina|Minha pequena/i.test(n) ? 4 : 5;
+  }
+  if (/^Abertura/.test(n)) return 1;
+  if (/^Fim da abertura|^Todos os brilhos/.test(n)) return 2;
+  if (/^Oração|^Apelo/.test(n)) return 7;
+  if (/^Encerramento/.test(n)) return 8;
+  const tr = trilhaFor(j); return tr === 's4' || tr === 's5' ? 7 : 3;
+}
+let midi = null, lxOut = null, lxLast = 0;
+const lxEl = id => document.getElementById(id);
+let LX = {prog: 'qlc', mode: 'note', on: false, out: ''}; try { Object.assign(LX, JSON.parse(localStorage.getItem('lummi-lx') || '{}')); } catch(_){}
+const lxSave = () => { try { localStorage.setItem('lummi-lx', JSON.stringify(LX)); } catch(_){} };
+function lxPaintOuts(){
+  const sel = lxEl('lxOut'); sel.innerHTML = '';
+  const outs = midi ? [...midi.outputs.values()] : [];
+  if (!outs.length){ opt(sel, '', midi ? 'Nenhuma saída MIDI (veja o passo 1 do guia)' : '(conecte primeiro)', true); lxOut = null; return; }
+  outs.forEach(o => opt(sel, o.id, 'Saída: ' + o.name, o.name === LX.out));
+  lxOut = outs.find(o => o.name === LX.out) || outs[0]; sel.value = lxOut.id;
+}
+async function lxConnect(){
+  if (!navigator.requestMIDIAccess){ say('Este navegador não tem MIDI. Use o Google Chrome.'); return; }
+  try { midi = await navigator.requestMIDIAccess(); midi.onstatechange = lxPaintOuts; lxPaintOuts(); say(lxOut ? `MIDI conectado: ${lxOut.name}.` : 'MIDI liberado, mas nenhuma saída encontrada. Veja o passo 1 do guia.'); }
+  catch(_){ say('O Chrome não liberou o MIDI. Clique em “Conectar MIDI” de novo e aceite o pedido.'); }
+}
+function sendLook(n, why){
+  if (!n) return;
+  lxLast = n; paintLx();
+  if (!lxOut){ return; }
+  try {
+    if (LX.mode === 'pc') lxOut.send([0xC0, n - 1]);
+    else { lxOut.send([0x90, n, 127]); lxOut.send([0x80, n, 0], performance.now() + 150); }
+  } catch(_){}
+}
+function paintLx(){
+  document.querySelectorAll('#lxBtns button').forEach((b, i) => b.classList.toggle('on', i + 1 === lxLast));
+  const el = lxEl('lxNow'); el.classList.toggle('on', LX.on);
+  el.textContent = LX.on ? `Luz automática: ${lxLast ? lxLast + ' · ' + LOOKS[lxLast] : 'aguardando o primeiro take'}${lxOut ? '' : ' · ⚠ MIDI não conectado'}` : 'Luz: automática desligada (⚙ Ajustes → Luz)';
+}
+const LX_GUIDE = {
+  qlc: ['Instale o <b>loopMIDI</b> (gratuito) e crie uma porta com o nome <b>Lummi</b>. Ele precisa estar aberto no show.',
+        'No QLC+: aba <b>Entradas/Saídas</b> → Universo 1 → marque <b>Lummi</b> na coluna <b>Entrada</b>.',
+        'Aba <b>Funções</b>: crie 8 <b>Cenas</b> com os nomes da lista abaixo e ajuste as luzes de cada uma.',
+        'Aba <b>Console virtual</b>: crie um <b>Quadro solo</b> e, dentro dele, 8 botões, cada um ligado a uma cena (assim só uma fica acesa por vez).',
+        'Em cada botão: propriedades → <b>Controle externo</b> → <b>Detecção automática</b> → clique aqui no botão de teste da mesma cena → confirme.',
+        'Aqui: escolha a saída <b>Lummi</b>, ligue a opção <b>3</b> e solte um take para testar.'],
+  qlcmac: ['Abra <b>Configuração de Áudio e MIDI</b> → Janela → Mostrar Estúdio MIDI → <b>Driver IAC</b> → marque <b>Dispositivo está on-line</b>.',
+        'No QLC+: <b>Entradas/Saídas</b> → Universo 1 → marque <b>IAC</b> como Entrada.',
+        'Crie 8 <b>Cenas</b> (lista abaixo), um <b>Quadro solo</b> no Console virtual com 8 botões, um por cena.',
+        'Em cada botão: <b>Controle externo</b> → <b>Detecção automática</b> → clique aqui no botão de teste da mesma cena.',
+        'Aqui: saída <b>IAC</b>, ligue a opção <b>3</b>.'],
+  free: ['Instale o <b>loopMIDI</b> e crie a porta <b>Lummi</b> (deixe aberto).',
+        'No Freestyler: <b>Configuração → FreeStyler Setup → MIDI</b> → entrada <b>Lummi</b>.',
+        'Grave as 8 cenas como <b>Cues</b> (lista abaixo).',
+        'Em <b>Configuração → MIDI Setup</b> (ou clique direito no cue → MIDI), use <b>Learn</b> e clique aqui no botão de teste da mesma cena.',
+        'Aqui: saída <b>Lummi</b>, ligue a opção <b>3</b>.'],
+  lightkey: ['Ative o <b>Driver IAC</b> do Mac (Configuração de Áudio e MIDI → Estúdio MIDI → Driver IAC → on-line).',
+        'No Lightkey: <b>Preferências → MIDI</b> → ative a entrada <b>IAC</b>.',
+        'Crie 8 <b>Cues</b> (lista abaixo). Em cada cue: clique direito → <b>MIDI → Learn</b> e clique aqui no botão de teste da mesma cena.',
+        'Aqui: saída <b>IAC</b>, ligue a opção <b>3</b>.'],
+  magicq: ['Windows: instale o <b>loopMIDI</b> com a porta <b>Lummi</b>. Mac: ative o <b>Driver IAC</b>.',
+        'No MagicQ: <b>Setup → View Settings → Ports</b> → MIDI in: <b>Lummi</b>/IAC; em <b>MIDI/Timecode</b> ative <b>MIDI notes</b>.',
+        'Grave as 8 cenas em 8 playbacks/cues (lista abaixo) e associe as notas 1 a 8 (ou use Program Change).',
+        'Aqui: escolha a saída e ligue a opção <b>3</b>.'],
+  desk: ['Ligue um <b>cabo USB-MIDI</b> do notebook na entrada <b>MIDI IN</b> da mesa.',
+        'Na mesa, ative a recepção MIDI (veja o manual: “MIDI notes” ou “Program Change” para chamar memórias/cenas).',
+        'Grave as 8 cenas nas memórias 1 a 8 da mesa (lista abaixo).',
+        'Aqui: saída = o cabo USB-MIDI; escolha Nota ou Program Change conforme o manual; ligue a opção <b>3</b> e teste com os botões.'],
+  other: ['Quase todo programa de luz aceita <b>MIDI</b>. No Windows, crie uma porta virtual com o <b>loopMIDI</b>; no Mac, ative o <b>Driver IAC</b>.',
+        'No programa, ative essa porta como <b>entrada MIDI</b>.',
+        'Grave as 8 cenas (lista abaixo) e, em cada uma, use o <b>MIDI Learn</b> (aprender) clicando aqui no botão de teste da mesma cena.',
+        'Aqui: escolha a saída, ligue a opção <b>3</b> e solte um take para testar.']
+};
+function paintLxGuide(){
+  lxEl('lxGuide').innerHTML = LX_GUIDE[LX.prog].map(t => '<li>' + t + '</li>').join('') +
+    '<li>As 8 cenas: ' + LOOKS.slice(1).map((n, i) => `<b>${i + 1}</b> ${n}`).join(' · ') + '.</li>';
+}
+{
+  const box = lxEl('lxBtns');
+  LOOKS.slice(1).forEach((n, i) => { const b = document.createElement('button'); b.textContent = `${i + 1} · ${n}`; b.title = 'Manda esta cena agora (e serve para o “MIDI learn” do seu programa)'; b.onclick = e => { sendLook(i + 1); say(lxOut ? `Luz: cena ${i + 1} enviada.` : 'Conecte o MIDI primeiro (botão 2).'); e.currentTarget.blur(); }; box.appendChild(b); });
+  lxEl('lxProg').value = LX.prog; lxEl('lxMode').value = LX.mode; lxEl('lxOn').checked = LX.on;
+  lxEl('lxProg').onchange = e => { LX.prog = e.target.value; lxSave(); paintLxGuide(); };
+  lxEl('lxMode').onchange = e => { LX.mode = e.target.value; lxSave(); };
+  lxEl('lxOn').onchange = e => { LX.on = e.target.checked; lxSave(); paintLx(); if (LX.on && !midi) lxConnect(); };
+  lxEl('lxOut').onchange = e => { lxOut = midi && midi.outputs.get(e.target.value) || null; if (lxOut){ LX.out = lxOut.name; lxSave(); } paintLx(); };
+  lxEl('lxConnect').onclick = e => { lxConnect(); e.currentTarget.blur(); };
+  paintLxGuide(); paintLx();
+  if (LX.on && navigator.requestMIDIAccess) navigator.permissions?.query({name: 'midi'}).then(st => { if (st.state === 'granted') lxConnect(); }).catch(() => {});
+}
 /* ===== correção rápida ===== */
 let blackT = 0, blackA = 0, starsOnly = false;
 const qBlack = document.getElementById('qBlack'), qStars = document.getElementById('qStars');
@@ -3068,7 +3210,7 @@ function frame(now){
   if (saved.length && !saved.every(t => t.example) && !oldBaked) takes = saved.map(t => Object.assign({trk: 'keep'}, t));
   else if (BAKED && BAKED.length){
     saved.forEach(t => dbDel('takes', t.id)); takes = bakedTakes();
-    takes.forEach(t => { const o = saved.find(x => x.id === t.id); if (o && o.vid){ t.vid = o.vid; t.vidName = o.vidName; t.vsound = o.vsound; t.loop = o.loop; } if (o && o.daud && !t.mkey){ t.daud = o.daud; t.daudName = o.daudName; } if (o && o.vid2){ t.vid2 = o.vid2; t.vid2Name = o.vid2Name; } if (o && o.bg && o.bv >= 12) t.bg = o.bg; if (o && o.vfDone) t.vfDone = o.vfDone; if (o && o.vf2Done) t.vf2Done = o.vf2Done; });
+    takes.forEach(t => { const o = saved.find(x => x.id === t.id); if (o && o.vid){ t.vid = o.vid; t.vidName = o.vidName; t.vsound = o.vsound; t.loop = o.loop; } if (o && o.daud && !t.mkey){ t.daud = o.daud; t.daudName = o.daudName; } if (o && o.vid2){ t.vid2 = o.vid2; t.vid2Name = o.vid2Name; } if (o && o.bg && o.bv >= 12) t.bg = o.bg; if (o && o.vfDone) t.vfDone = o.vfDone; if (o && o.vspdSet){ t.vspd = o.vspd; t.vspdSet = true; } if (o && o.vf2Done) t.vf2Done = o.vf2Done; });
     saveAll();
   }
   else { takes = EXAMPLES.map(([name, scene, dur, pos, trk]) => ({id: uid(), name, scene, dur, pos, trk, example: true})); saveAll(); }
