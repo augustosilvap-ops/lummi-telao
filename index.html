@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 26/11 17:48</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 26/11 17:59</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -444,7 +444,7 @@ input[type=file]{display:none}
         <div class="g3 center"><button id="angW-all">Nas 3 telas</button><button id="angW-center">No central</button><button id="angW-side">Nas laterais</button></div>
         <p class="hint" id="logoInfo"></p>
         <div class="label" style="margin-top:6px">5 TVs do fundo (transmissão ao vivo)</div>
-        <p class="hint">Cada TV mostra a filmagem inteira e, nos corais, a letra completa (as TVs ficam separadas, então a imagem se repete em cada uma). Se o computador manda 1 sinal para um divisor que estica nas 5 TVs, a imagem já sai certa.</p>
+        <p class="hint">Cada saída das TVs (as telas “LG TV” do computador) mostra a filmagem inteira e, nos corais, a letra completa. Projete a saída 1 numa tela LG e a saída 2 na outra; os divisores levam a mesma imagem para as 5 TVs.</p>
         <div hidden><button id="tv-wall"></button><button id="tv-rep"></button></div>
         <label class="field" id="tvYf" hidden>Altura do recorte da câmera (uma imagem nas 5) <span class="val" id="tvYv"></span><input type="range" id="tvY" min="0" max="100" step="1"></label>
         <label class="check"><input type="checkbox" id="tvTest"> Mostrar teste nas TVs (número de cada TV)</label>
@@ -488,6 +488,7 @@ input[type=file]{display:none}
             <button id="resP-sq" title="O Lummi vai só para a tela central; as laterais ficam com a transmissão do Resolume">Só o central · quadrado (recomendado)</button>
             <button id="resP-v">3 empilhadas · 1536×4608</button>
             <button id="resP-h">3 lado a lado</button>
+            <button id="resP-t" title="Saída HDMI do teatro: lateral 1024 + central 1280 + lateral 1024, com 1280 de altura">Teatro · 3328×1280</button>
           </div>
           <label class="check"><input type="checkbox" id="resTest"> Mostrar tela de teste (nome e borda de cada tela)</label>
           <table class="resT" style="width:100%;font-size:12px;border-collapse:collapse">
@@ -506,6 +507,7 @@ input[type=file]{display:none}
         <label class="check"><input type="checkbox" id="camOn"> Mostrar a câmera nas telas laterais</label>
         <label class="check"><input type="checkbox" id="camTalk"> Câmera nas laterais também nas cenas da Lummi (desmarcado: só nos corais; no resto, imagem panorâmica)</label>
         <label class="check"><input type="checkbox" id="danceAll"> Nas danças, o vídeo ocupa as 3 telas (nos corais as laterais ficam com a câmera e a letra; nas falas, só a câmera)</label>
+        <label class="field">Qualidade da câmera na entrada<select id="camQ" aria-label="Qualidade da câmera"><option value="fhd">Full HD 1920×1080 (recomendado, mais fluido)</option><option value="4k">4K 3840×2160 (mais nítido, mais pesado)</option></select></label>
         <label class="check"><input type="checkbox" id="camMirror"> Espelhar a imagem da câmera</label>
         <div class="label" style="margin-top:6px">Formato do telão central</div>
         <div class="g2 center">
@@ -1702,9 +1704,9 @@ async function camOpen(side, id){
   const c = cams[side];
   if (c.stream) c.stream.getTracks().forEach(t => t.stop());
   const base = {deviceId: id ? {exact: id} : undefined};
-  try { c.stream = await navigator.mediaDevices.getUserMedia({video: Object.assign({}, base, {width: {ideal: 1920, max: 1920}, height: {ideal: 1080, max: 1080}, frameRate: {ideal: 60, max: 60}, resizeMode: 'crop-and-scale'}), audio: false}); }
+  try { c.stream = await navigator.mediaDevices.getUserMedia({video: Object.assign({}, base, CAM.q === '4k' ? {width: {ideal: 3840, max: 3840}, height: {ideal: 2160, max: 2160}, frameRate: {ideal: 60, max: 60}, resizeMode: 'crop-and-scale'} : {width: {ideal: 1920, max: 1920}, height: {ideal: 1080, max: 1080}, frameRate: {ideal: 60, max: 60}, resizeMode: 'crop-and-scale'}), audio: false}); }
   catch(_){ c.stream = await navigator.mediaDevices.getUserMedia({video: Object.assign({}, base, {width: {ideal: 1920}, height: {ideal: 1080}, frameRate: {ideal: 60}}), audio: false}); }
-  try { const tr0 = c.stream.getVideoTracks()[0], st0 = tr0.getSettings(); if (st0.width > 1920) await tr0.applyConstraints({width: {ideal: 1920}, height: {ideal: 1080}, resizeMode: 'crop-and-scale'}); c.info = `${tr0.getSettings().width}×${tr0.getSettings().height} · ${Math.round(tr0.getSettings().frameRate || 0)} qps`; } catch(_){}
+  try { const tr0 = c.stream.getVideoTracks()[0], st0 = tr0.getSettings(); const mw = CAM.q === '4k' ? 3840 : 1920; if (st0.width > mw) await tr0.applyConstraints({width: {ideal: mw}, height: {ideal: mw * 9 / 16}, resizeMode: 'crop-and-scale'}); c.info = `${tr0.getSettings().width}×${tr0.getSettings().height} · ${Math.round(tr0.getSettings().frameRate || 0)} qps`; } catch(_){}
   if (!c.el){ c.el = document.createElement('video'); c.el.muted = true; c.el.playsInline = true; c.el.autoplay = true; }
   c.el.srcObject = c.stream; vidHost().appendChild(c.el); c.el.play().catch(() => {});
   const tr = c.stream.getVideoTracks()[0];
@@ -1882,7 +1884,7 @@ function resize(){
     if (RES.on && screens.U && pop){ const rc = resRects(w, h).C; w = Math.max(64, w * rc[2]); h = Math.max(64, h * rc[3]); }
     if (!pop){ w = aw; h = ah; }
     const pDpr = pop ? (popup.devicePixelRatio || 1) : (devicePixelRatio || 1);
-    const pw = slicing() ? pixelSize(w * 3, h, pDpr, 3) : pop || panel.hidden ? pixelSize(w, h, pDpr) : pixelSize(w, h, pDpr).map(v => Math.round(v * .75));
+    const pw = slicing() ? pixelSize(w * 3, h, pDpr, 2.1) : pop || panel.hidden ? pixelSize(w, h, pDpr) : pixelSize(w, h, pDpr).map(v => Math.round(v * .75));
     if (slicing()) w = w * 3;
     cv.width = pw[0]; cv.height = pw[1];
   }
@@ -3095,6 +3097,8 @@ document.getElementById('camSelL').onchange = async e => { CAM.idL = e.target.va
 document.getElementById('camSelR').onchange = async e => { CAM.idR = e.target.value; camSave(); if (CAM.on) await camStart(); };
 document.getElementById('camOn').onchange = e => camToggle(e.target.checked);
 document.getElementById('camMirror').onchange = e => { CAM.mirror = e.target.checked; camSave(); };
+document.getElementById('camQ').value = CAM.q === '4k' ? '4k' : 'fhd';
+document.getElementById('camQ').onchange = async e => { CAM.q = e.target.value; camSave(); if (CAM.on) await camStart(); say(CAM.q === '4k' ? 'Câmera em 4K: mais nítida, exige mais do computador.' : 'Câmera em Full HD.'); };
 document.getElementById('camTalk').checked = !!CAM.talk;
 document.getElementById('camTalk').onchange = e => { CAM.talk = e.target.checked; camSave(); };
 document.getElementById('danceAll').onchange = e => { CAM.danceAll = e.target.checked; camSave(); };
@@ -3133,6 +3137,7 @@ document.getElementById('resTest').onchange = e => { RES.test = e.target.checked
 const resPreset = (sq, rects, msg) => { RES.sq = sq; if (rects) RES.rects = rects; resSave(); paintRes(); resize(); say(msg); };
 document.getElementById('resP-sq').onclick = e => { resPreset(true, null, 'Saída única: só a tela central, em quadrado. No Resolume, ponha essa fonte na slice da tela central; as laterais seguem com a transmissão.'); if (screenMode !== 'one'){ screenMode = 'one'; try { localStorage.setItem('lummi-screens', 'one'); } catch(_){} paintScreens(); } e.currentTarget.blur(); };
 document.getElementById('resP-v').onclick = e => { resPreset(false, {L: [0, 0, 1, 1/3], C: [0, 1/3, 1, 1/3], R: [0, 2/3, 1, 1/3]}, '3 telas empilhadas (1536×4608): esquerda em cima, central no meio, direita embaixo. Confira a ordem com a tela de teste.'); e.currentTarget.blur(); };
+document.getElementById('resP-t').onclick = e => { resPreset(false, {L: [0, 0, 1024 / 3328, 1], C: [1024 / 3328, 0, 1280 / 3328, 1], R: [2304 / 3328, 0, 1024 / 3328, 1]}, 'Teatro 3328×1280: lateral 1024 · central 1280 · lateral 1024. Ligue a tela de teste e confira se as bordas batem com o telão.'); e.currentTarget.blur(); };
 document.getElementById('resP-h').onclick = e => { resPreset(false, JSON.parse(JSON.stringify(RES_DEF.rects)), '3 telas lado a lado.'); e.currentTarget.blur(); };
 document.getElementById('resReset').onclick = e => { RES.sq = false; RES.rects = JSON.parse(JSON.stringify(RES_DEF.rects)); resSave(); paintRes(); resize(); e.currentTarget.blur(); };
 paintRes();
@@ -3147,7 +3152,7 @@ OUT.tvMode = 'rep';
 const outSave = () => { try { localStorage.setItem('lummi-out', JSON.stringify(OUT)); } catch(_){} };
 let LYR = {}; try { LYR = JSON.parse(localStorage.getItem('lummi-lyr') || '{}') || {}; } catch(_){}
 const lyrSaveAll = () => { try { localStorage.setItem('lummi-lyr', JSON.stringify(LYR)); } catch(_){} };
-const AUX = {TV: null, AP: null, SIM: null};
+const AUX = {TV: null, TV2: null, AP: null, SIM: null};
 let lastTk = null, lyrOff = 0, tvTest = false;
 const lyrTap = {armed: false, on: false, id: null, times: []};
 
@@ -3248,10 +3253,10 @@ function placeWin(w, pl){
     if (p && p.then) p.then(done).catch(() => { const t = w.document.getElementById('tip'); if (t){ t.innerHTML = '<b style="font-size:22px">Clique aqui uma vez</b><br>ou aperte F para tela cheia'; t.style.opacity = 1; } say(`Janela aberta na tela ${pl.n}. Se não ficou em tela cheia, clique nela uma vez e aperte F.`); });
   } catch(_){ say(`Janela aberta na tela ${pl.n}. Clique nela e aperte F para tela cheia.`); }
 }
-const AUXNAME = {TV: 'TVs do fundo', AP: 'Apoio do palco', SIM: 'Simulação das telas'};
+const AUXNAME = {TV: 'TVs do fundo · saída 1', TV2: 'TVs do fundo · saída 2', AP: 'Apoio do palco', SIM: 'Simulação das telas'};
 function openAux(kind, pl){
   if (AUX[kind] && !AUX[kind].win.closed){ if (pl) placeWin(AUX[kind].win, pl); else AUX[kind].win.focus(); return; }
-  const w = window.open('', 'lummi-' + kind, pl ? winFeat(pl) : kind === 'TV' ? 'popup,width=1280,height=360' : kind === 'SIM' ? 'popup,width=1280,height=860' : 'popup,width=1024,height=576');
+  const w = window.open('', 'lummi-' + kind, pl ? winFeat(pl) : kind === 'TV' || kind === 'TV2' ? 'popup,width=1280,height=720' : kind === 'SIM' ? 'popup,width=1280,height=860' : 'popup,width=1024,height=576');
   if (!w){ say('O navegador bloqueou a janela. Permita pop-ups para esta página.'); return; }
   w.document.open();
   w.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Lummi · ' + AUXNAME[kind] + '</title><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{width:100%;height:100%;display:block}#tip{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);font:15px system-ui,sans-serif;color:#f4ecdc;background:rgba(0,0,0,.7);padding:10px 16px;border-radius:8px;transition:opacity 1s;text-align:center}</style><canvas></canvas><div id="tip"><b style="font-size:22px">' + AUXNAME[kind].toUpperCase() + '</b><br>Clique duas vezes ou aperte F para tela cheia</div><script>(function(){var d=document;function go(){if(!d.fullscreenElement){d.documentElement.requestFullscreen()}else{d.exitFullscreen()}}d.addEventListener("dblclick",go);d.addEventListener("click",function(){if(!d.fullscreenElement)go()});d.addEventListener("keydown",function(e){if(e.key==="f"||e.key==="F")go()});var t;d.addEventListener("mousemove",function(){d.body.style.cursor="default";clearTimeout(t);t=setTimeout(function(){d.body.style.cursor="none"},1500)})})();<\/script></html>');
@@ -3279,7 +3284,16 @@ function camCover(c, dx, dy, dw, dh, yPos){
   c.save(); if (CAM.mirror){ c.translate(dx * 2 + dw, 0); c.scale(-1, 1); }
   c.drawImage(el, sx, sy, sw, sh, dx, dy, dw, dh); c.restore();
 }
-function drawTV(a){ const [W, H] = auxSize(a, 1920); drawTVTo(a.ctx, 0, 0, W, H, true); }
+function drawTV(a){
+  const [W, H] = auxSize(a, 1920), c = a.ctx, live = camReady('L'), logo = OUT.logoTV && logoA > .003;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  if (!(liveDom() && live && !logo)){
+    if (live) camCover(c, 0, 0, W, H); else { const sl = slicing(), s3 = sl ? cv.width / 3 : cv.width; coverDraw(c, sl ? s3 : 0, 0, s3, cv.height, 0, 0, W, H); }
+    lyrDraw(c, 0, 0, W, H);
+  }
+  if (logo) logoDraw(c, 0, 0, W, H);
+  if (blackA > .002){ c.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; c.fillRect(0, 0, W, H); }
+}
 function drawTVTo(c, X, Y, W, H, dom){
   c.save(); c.setTransform(1, 0, 0, 1, X, Y); c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
   /* desenha numa “parede” lógica de 5 TVs 16:9 lado a lado e estica para a janela:
@@ -3391,32 +3405,37 @@ function updateLive(){
   if (U && !U.win.closed){
     const L = liveLayer(U.win), W = U.win.innerWidth, H = U.win.innerHeight, R = resRects(W, H);
     L.style.opacity = op;
-    ['L', 'R'].forEach((r, i) => { const [x, y, w, h] = R[r]; setSlot(liveSlot(L, i), dom && w > 0 && camSide(r) && !logoOn(r), x * W, y * H, w * W, h * H, r, txt); });
+    ['L', 'R'].forEach((r, i) => { const [x, y, w, h] = R[r]; setSlot(liveSlot(L, i), dom && !RES.test && w > 0 && camSide(r) && !logoOn(r), x * W, y * H, w * W, h * H, r, txt); });
   }
   ['L', 'R'].forEach(r => {
     const sc = screens[r]; if (!sc || sc.win.closed) return;
     const L = liveLayer(sc.win); L.style.opacity = op;
     setSlot(liveSlot(L, 0), dom && camSide(r) && !logoOn(r), 0, 0, sc.win.innerWidth, sc.win.innerHeight, r, txt);
   });
-  const T = AUX.TV;
-  if (T && !T.win.closed){
-    const L = liveLayer(T.win), H = T.win.innerHeight, LW = H * 80 / 9, tw = LW / 5;
-    L.style.width = LW + 'px'; L.style.transform = `scaleX(${T.win.innerWidth / LW})`; L.style.opacity = op;
-    const on = dom && camReady('L') && !(OUT.logoTV && logoA > .003);
-    for (let i = 0; i < 5; i++) setSlot(liveSlot(L, i), on, i * tw, 0, tw, H, 'L', txt);
-  }
+  ['TV', 'TV2'].forEach(k => {
+    const T = AUX[k]; if (!T || T.win.closed) return;
+    const L = liveLayer(T.win); L.style.opacity = op;
+    setSlot(liveSlot(L, 0), dom && camReady('L') && !(OUT.logoTV && logoA > .003), 0, 0, T.win.innerWidth, T.win.innerHeight, 'L', txt);
+  });
 }
 function drawAux(){
   try { updateLive(); } catch(_){}
   for (const k in AUX){ const a = AUX[k]; if (!a) continue; if (a.win.closed){ AUX[k] = null; paintOut(); if (k === 'SIM') resize(); continue; }
-    try { k === 'TV' ? drawTV(a) : k === 'AP' ? drawAP(a) : drawSim(a); } catch(_){} }
+    try { k === 'TV' || k === 'TV2' ? drawTV(a) : k === 'AP' ? drawAP(a) : drawSim(a); } catch(_){} }
 }
 
 /* ---------- detectar telas e projetar ---------- */
 let SCR = [];
 const OUTS = [
-  {k: 'T', n: 'Telão (palco)', open: pl => openScreen(RES.on ? 'U' : 'C', pl)},
-  {k: 'TV', n: '5 TVs do fundo', open: pl => openAux('TV', pl)},
+  {k: 'T', n: 'Telão (palco)', open: pl => {
+    if (pl && pl.width === 3328 && pl.height === 1280){
+      const def = JSON.stringify(RES.rects) === JSON.stringify(RES_DEF.rects) || RES.sq || RES.rects.C[1] > .3;
+      if (!RES.on || def){ RES.on = true; RES.sq = false; if (def) RES.rects = {L: [0, 0, 1024 / 3328, 1], C: [1024 / 3328, 0, 1280 / 3328, 1], R: [2304 / 3328, 0, 1024 / 3328, 1]}; resSave(); paintRes(); paintScreens(); }
+    }
+    openScreen(RES.on ? 'U' : 'C', pl);
+  }},
+  {k: 'TV', n: 'TVs do fundo · saída 1', open: pl => openAux('TV', pl)},
+  {k: 'TV2', n: 'TVs do fundo · saída 2', open: pl => openAux('TV2', pl)},
   {k: 'AP', n: 'Apoio do palco (letras e falas da Clara)', open: pl => openAux('AP', pl)},
 ];
 async function detectScreens(quiet){
@@ -3434,12 +3453,15 @@ async function detectScreens(quiet){
 }
 const scrKey = s => `${s.label}|${s.width}x${s.height}|${s.left},${s.top}`;
 function autoMap(){
-  const free = SCR.filter(s => !s.isPrimary);
-  OUTS.forEach((o, i) => {
-    const want = OUT.map[o.k];
-    if (want && SCR.some(s => scrKey(s) === want)) return;
-    const s = free[i] || null; if (s) OUT.map[o.k] = scrKey(s);
-  });
+  const free = SCR.filter(s => !s.isPrimary), used = new Set();
+  const ok = k => { const w = OUT.map[k]; return w && SCR.some(s => scrKey(s) === w); };
+  OUTS.forEach(o => { if (ok(o.k)) used.add(OUT.map[o.k]); });
+  const take = (k, s) => { if (!s || ok(k)) return; OUT.map[k] = scrKey(s); used.add(scrKey(s)); };
+  const avail = () => free.filter(s => !used.has(scrKey(s)));
+  /* telão: a tela mais larga (ex.: 3328×1280) · TVs: as TVs LG / 16:9 · apoio: o Field Monitor */
+  take('T', avail().slice().sort((a, b) => b.width / b.height - a.width / a.height)[0]);
+  const tvs = avail().filter(s => /\btv\b|lg/i.test(s.label)); take('TV', tvs[0]); take('TV2', tvs[1]);
+  take('AP', avail().find(s => /field|monitor/i.test(s.label)) || avail()[0]);
   outSave();
 }
 function paintOut(){
