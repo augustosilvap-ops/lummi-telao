@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 26/11 17:59</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 26/11 19:13</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -1758,18 +1758,40 @@ function resRects(W, H){
   const side = Math.min(W, H);
   return {C: [(W - side) / 2 / W, (H - side) / 2 / H, side / W, side / H], L: [0, 0, 0, 0], R: [0, 0, 0, 0]};
 }
+/* vídeos direto do arquivo para cada tela, na resolução cheia da tela (não passa pelo desenho do fundo) */
+function vidDirect(){
+  const v = activeVid;
+  if (!v || !playing || playing.kind !== 'video' || starsOnly || vidA < .01 || v.readyState < 2 || !v.videoWidth) return null;
+  return v;
+}
+/* desenha a parte do vídeo que cabe no retângulo (dx,dy,dw,dh), sabendo a área total (ux,uy,uw,uh) que o vídeo cobre */
+function vidPart(c, v, ux, uy, uw, uh, dx, dy, dw, dh){
+  const k = Math.max(uw / v.videoWidth, uh / v.videoHeight), ox = ux + (uw - v.videoWidth * k) / 2, oy = uy + (uh - v.videoHeight * k) / 2;
+  c.save(); c.globalAlpha = Math.min(1, vidA); c.drawImage(v, (dx - ox) / k, (dy - oy) / k, dw / k, dh / k, dx, dy, dw, dh); c.restore();
+}
+function vidRegion(c, r, U3, dx, dy, dw, dh){
+  const v = vidDirect(); if (!v) return;
+  if (SHAPE.on && r === 'C') return;
+  if (r !== 'C' && camSide(r)) return;
+  if (vidPano()) vidPart(c, v, U3[0], U3[1], U3[2], U3[3], dx, dy, dw, dh);
+  else if (r === 'C' || (vidMode !== 'center' && (danceOnAir() || slicing()))) vidPart(c, v, dx, dy, dw, dh, dx, dy, dw, dh);
+}
 function drawSingle(sc){
   const c = sc.ctx, W = sc.cv.width, H = sc.cv.height, sl = slicing(), tw = sl ? Math.floor(cv.width / 3) : cv.width;
   c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  const RR = resRects(W, H), vis = ['L', 'C', 'R'].filter(r => RR[r][2] > 0 && RR[r][3] > 0);
+  const ux0 = Math.min(...vis.map(r => RR[r][0])) * W, uy0 = Math.min(...vis.map(r => RR[r][1])) * H;
+  const U3 = [ux0, uy0, Math.max(...vis.map(r => RR[r][0] + RR[r][2])) * W - ux0, Math.max(...vis.map(r => RR[r][1] + RR[r][3])) * H - uy0];
   ['L', 'C', 'R'].forEach(r => {
-    const [x, y, w, h] = resRects(W, H)[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
+    const [x, y, w, h] = RR[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
     if (dw < 2 || dh < 2) return;
-    if (r !== 'C' && danceOnAir() && !sl){ coverDraw(c, 0, 0, cv.width, cv.height, dx, dy, dw, dh); }
+    if (r !== 'C' && danceOnAir() && !sl){ coverDraw(c, 0, 0, cv.width, cv.height, dx, dy, dw, dh); vidRegion(c, r, U3, dx, dy, dw, dh); }
     else if (r !== 'C' && camSide(r)){ if (!liveDom()){ camDraw(c, dx, dy, dw, dh, r); lyrDraw(c, dx, dy, dw, dh); } }
     else {
     const sx = sl ? ROLE_I[r] * tw : 0;
     if (SHAPE.on && r === 'C') drawShapedRect(c, sx, 0, tw, cv.height, dx, dy, dw, dh);
     else coverDraw(c, sx, 0, tw, cv.height, dx, dy, dw, dh);
+    vidRegion(c, r, U3, dx, dy, dw, dh);
     if (r !== 'C') lyrDraw(c, dx, dy, dw, dh);
     }
     if (logoOn(r)) logoDraw(c, dx, dy, dw, dh);
@@ -3151,7 +3173,11 @@ let OUT = {tvMode: 'rep', tvY: .45, lyrOn: true, map: {}}; try { Object.assign(O
 OUT.tvMode = 'rep';
 const outSave = () => { try { localStorage.setItem('lummi-out', JSON.stringify(OUT)); } catch(_){} };
 let LYR = {}; try { LYR = JSON.parse(localStorage.getItem('lummi-lyr') || '{}') || {}; } catch(_){}
-const lyrSaveAll = () => { try { localStorage.setItem('lummi-lyr', JSON.stringify(LYR)); } catch(_){} };
+const lyrSaveAll = () => {
+  try { localStorage.setItem('lummi-lyr', JSON.stringify(LYR)); }
+  catch(_){ try { localStorage.removeItem('lummi-logo'); localStorage.setItem('lummi-lyr', JSON.stringify(LYR)); } catch(__){ say('Não consegui guardar a letra neste navegador. Use “Baixar ajustes” para não perder.'); } }
+};
+function lyrSaved(quiet){ const inf = document.getElementById('lyrInfo'); if (inf){ inf.dataset.ok = Date.now(); } if (!quiet) say('Letra salva.'); }
 const AUX = {TV: null, TV2: null, AP: null, SIM: null};
 let lastTk = null, lyrOff = 0, tvTest = false;
 const lyrTap = {armed: false, on: false, id: null, times: []};
@@ -3508,7 +3534,7 @@ function paintLyr(){
   const ta = document.getElementById('lyrText'); if (ta && document.activeElement !== ta && ta.dataset.id !== sel.value){ ta.value = L ? L.lines.join('\n') : ''; ta.dataset.id = sel.value; }
   const tb = document.getElementById('lyrTap'); if (tb){ tb.classList.toggle('on', lyrTap.armed || lyrTap.on); tb.textContent = lyrTap.on ? `Marcando… (${lyrTap.times.length}) · clique p/ terminar` : lyrTap.armed ? 'Pronto: dispare o coral' : 'Marcar tempos no ensaio'; }
   const inf = document.getElementById('lyrInfo');
-  if (inf) inf.textContent = !L || !L.lines.length ? 'Este coral ainda não tem letra.' : `${L.lines.length} linhas · ${L.times && L.times.length ? `tempos marcados no ensaio (${L.times.length})` : 'tempo estimado (marque no ensaio para ficar exato)'}`;
+  if (inf) inf.textContent = !L || !L.lines.length ? 'Este coral ainda não tem letra.' : `✓ Letra salva neste computador · ${L.lines.length} linhas · ${L.times && L.times.length ? `tempos marcados no ensaio (${L.times.length})` : 'tempo estimado (marque no ensaio para ficar exato)'}`;
 }
 function setupOut(){
   document.getElementById('scrDetect').onclick = e => { e.currentTarget.blur(); detectScreens(false); };
@@ -3518,7 +3544,22 @@ function setupOut(){
   document.getElementById('tvTest').onchange = e => { tvTest = e.target.checked; };
   document.getElementById('lyrOn').onchange = e => { OUT.lyrOn = e.target.checked; outSave(); };
   document.getElementById('lyrWeb').onclick = e => { e.currentTarget.blur(); const id = document.getElementById('lyrSong').value; const u = LYR_WEB[id] || 'https://www.google.com/search?q=' + encodeURIComponent('letra ' + (takes.find(t => t.id === id)?.name || '').replace(/^.*Coral · /, '')); window.open(u, '_blank', 'noopener'); say('No site, selecione só a letra e copie (Ctrl+C). Volte aqui e clique em “Colar letra copiada”.'); };
-  document.getElementById('lyrSong').onchange = () => { document.getElementById('lyrText').dataset.id = ''; paintLyr(); };
+  document.getElementById('lyrSong').onchange = () => { const ta = document.getElementById('lyrText'); clearTimeout(lyrTimer); lyrStore(ta.dataset.id, true); ta.dataset.id = ''; paintLyr(); };
+  let lyrTimer = null;
+  const lyrStore = (id, quiet) => {
+    const ta = document.getElementById('lyrText'); if (!id || ta.dataset.id !== id) return;
+    const lines = ta.value.replace(/\r/g, '').split('\n').map(l => l.trim());
+    while (lines.length && !lines[lines.length - 1]) lines.pop();
+    while (lines.length && !lines[0]) lines.shift();
+    const old = LYR[id];
+    if (!lines.length){ if (old){ delete LYR[id]; lyrSaveAll(); } return; }
+    if (old && old.lines.join('\n') === lines.join('\n')) return;
+    LYR[id] = {lines, times: old && old.times ? old.times.slice(0, lines.length) : null};
+    lyrSaveAll(); lyrSaved(quiet);
+  };
+  /* salva sozinho enquanto digita ou cola */
+  document.getElementById('lyrText').addEventListener('input', () => { clearTimeout(lyrTimer); const id = document.getElementById('lyrText').dataset.id; lyrTimer = setTimeout(() => lyrStore(id, true), 600); });
+  document.getElementById('lyrText').addEventListener('blur', () => { clearTimeout(lyrTimer); lyrStore(document.getElementById('lyrText').dataset.id, true); });
   document.getElementById('lyrSave').onclick = e => {
     e.currentTarget.blur(); const id = document.getElementById('lyrSong').value; if (!id) return;
     const lines = document.getElementById('lyrText').value.replace(/\r/g, '').split('\n').map(l => l.trim());
@@ -4205,6 +4246,7 @@ function frame(now){
       if ((r === 'L' || r === 'R') && camSide(r)){ sc.ctx.fillStyle = '#000'; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); if (!liveDom()){ camDraw(sc.ctx, 0, 0, sc.cv.width, sc.cv.height, r); lyrDraw(sc.ctx, 0, 0, sc.cv.width, sc.cv.height); } }
       else if (SHAPE.on && r === 'C') drawShaped(sc, sl ? sw : 0, 0, sw, cv.height);
       else if (sl) sc.ctx.drawImage(cv, ROLE_I[r] * sw, 0, sw, cv.height, 0, 0, sw, cv.height); else sc.ctx.drawImage(cv, 0, 0);
+      if (!((r === 'L' || r === 'R') && camSide(r)) && !(SHAPE.on && r === 'C')){ const W1 = sc.cv.width, H1 = sc.cv.height; vidRegion(sc.ctx, r, sl ? [-ROLE_I[r] * W1, 0, W1 * 3, H1] : [0, 0, W1, H1], 0, 0, W1, H1); }
       if ((r === 'L' || r === 'R') && !camSide(r)) lyrDraw(sc.ctx, 0, 0, sc.cv.width, sc.cv.height);
       if (logoOn(r)) logoDraw(sc.ctx, 0, 0, sc.cv.width, sc.cv.height);
       if (blackA > .002){ sc.ctx.fillStyle = `rgba(0,0,0,${blackA.toFixed(3)})`; sc.ctx.fillRect(0, 0, sc.cv.width, sc.cv.height); }
