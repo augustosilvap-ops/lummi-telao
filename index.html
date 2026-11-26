@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 26/11 10:12</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 26/11 10:32</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -522,6 +522,7 @@ input[type=file]{display:none}
         </div>
         <div class="label" style="margin-top:6px">Vídeos e fundos das danças nos 3 telões (panorâmico)</div>
         <div class="g2 center">
+          <button id="vm-pano">Panorâmico (padrão)</button>
           <button id="vm-center">Só no central</button>
           <button id="vm-repeat">Repetir nos 3</button>
         </div>
@@ -1666,7 +1667,9 @@ if (gl){
 let popup = null, pcv = null, pctx = null, recSize = null;
 const screens = {L: null, C: null, R: null, U: null}, ROLE = {L: 'esquerdo', C: 'central', R: 'direito', U: 'único (Resolume · 3 telas)'}, ROLE_I = {L: 0, C: 1, R: 2};
 let screenMode = 'pano'; try { if (!localStorage.getItem('lummi-mig-pano')){ localStorage.setItem('lummi-screens', 'pano'); localStorage.setItem('lummi-mig-pano', '1'); } screenMode = localStorage.getItem('lummi-screens') || 'pano'; if (screenMode === 'one') screenMode = 'pano'; } catch(_){}
-let vidMode = 'repeat'; try { vidMode = localStorage.getItem('lummi-vidmode') || 'repeat'; } catch(_){}
+let vidMode = 'pano'; try { if (!localStorage.getItem('lummi-mig-vpano')){ localStorage.setItem('lummi-vidmode', 'pano'); localStorage.setItem('lummi-mig-vpano', '1'); } vidMode = localStorage.getItem('lummi-vidmode') || 'pano'; } catch(_){}
+/* vídeo panorâmico (uma imagem contínua nas 3 telas) — no coral com câmera nas laterais, o vídeo fica inteiro no central */
+function vidPano(){ return slicing() && vidMode === 'pano' && !(playing && isCoral(playing) && (camSide('L') || camSide('R'))); }
 function openCount(){ return Object.values(screens).filter(Boolean).length; }
 function slicing(){ return screenMode !== 'mirror' && !recSize && ((RES.on ? !!screens.U : openCount() > 1) || !!(typeof AUX !== 'undefined' && AUX.SIM && !AUX.SIM.win.closed)); }
 /* câmera nas laterais: no coral (filmagem com letra); nas falas e danças só se marcado */
@@ -2792,6 +2795,7 @@ function convoAt(j){ for (let i = j; i < takes.length; i++){ const t = takes[i];
 function fire(j){
   const tk = takes[j]; if (!tk) return;
   lyrOnFire(tk); showMarkFire(tk);
+  if (!(tk.cues || []).some(c => c[1] === 'spots')){ spotT.fill(0); flashRate = 0; }
   if (starsOnly){ starsOnly = false; qStars.classList.remove('on'); }
   paused = false; paintPause();
   if (LX.on){ const lk = lookFor(tk); if (lk !== lxLast) setTimeout(() => sendLook(lk), 0); }
@@ -3065,7 +3069,7 @@ document.getElementById('telao').onclick = e => { openTelao(); e.currentTarget.b
 function paintScreens(){
   document.getElementById('telao')?.classList.toggle('on', openCount() > 0);
   ['one','mirror','pano'].forEach(m => document.getElementById('sm-' + m)?.classList.toggle('on', screenMode === m));
-  ['center','repeat'].forEach(m => document.getElementById('vm-' + m)?.classList.toggle('on', vidMode === m));
+  ['pano','center','repeat'].forEach(m => document.getElementById('vm-' + m)?.classList.toggle('on', vidMode === m));
   ['L','C','R'].forEach(r => { const b = document.getElementById('scr-' + r); if (b){ b.classList.toggle('on', !!screens[r]); b.textContent = (screens[r] ? '✓ ' : 'Abrir ') + 'telão ' + ROLE[r]; b.hidden = screenMode === 'one' && r !== 'C'; } });
   const st = document.getElementById('screenStatus');
   if (st) st.textContent = screenMode === 'one' ? 'Só o telão central recebe a imagem.' : screenMode === 'mirror' ? 'Os telões abertos mostram a mesma imagem.' : (openCount() > 1 ? 'Imagem contínua: a Lummi fica no central, e o céu e os fundos se estendem pelos laterais. As posições “Esquerda” e “Direita” levam a Lummi para os telões laterais.' : 'Abra os 3 telões para a imagem contínua. Se o teatro usar um divisor de vídeo (uma tela só, bem larga), abra só o central.');
@@ -3126,7 +3130,7 @@ document.getElementById('resP-h').onclick = e => { resPreset(false, JSON.parse(J
 document.getElementById('resReset').onclick = e => { RES.sq = false; RES.rects = JSON.parse(JSON.stringify(RES_DEF.rects)); resSave(); paintRes(); resize(); e.currentTarget.blur(); };
 paintRes();
 paintShape();
-['center','repeat'].forEach(m => document.getElementById('vm-' + m).onclick = e => { vidMode = m; try { localStorage.setItem('lummi-vidmode', m); } catch(_){} paintScreens(); say(m === 'center' ? 'Vídeos das danças só no telão central (com 3 telões no panorâmico).' : 'Vídeos das danças repetidos nos 3 telões.'); e.currentTarget.blur(); });
+['pano','center','repeat'].forEach(m => document.getElementById('vm-' + m).onclick = e => { vidMode = m; try { localStorage.setItem('lummi-vidmode', m); } catch(_){} paintScreens(); say(m === 'pano' ? 'Vídeos em panorâmico: uma imagem contínua nas 3 telas.' : m === 'center' ? 'Vídeos só no telão central.' : 'Vídeos repetidos nos 3 telões.'); e.currentTarget.blur(); });
 ['L','C','R'].forEach(r => document.getElementById('scr-' + r).onclick = e => { openScreen(RES.on && r === 'C' ? 'U' : r); resize(); e.currentTarget.blur(); });
 
 /* ===== saídas do teatro: 5 TVs do fundo, tela de apoio do palco, letras dos corais e projeção automática em cada tela ===== */
@@ -4068,12 +4072,12 @@ function frame(now){
       }
       /* mistura só quando o vídeo está lento (quadros demorando mais que ~45 ms) */
       gl.uniform1f(U.uVidMix, vfGap > 45 && (activeVid.playbackRate || 1) < .95 ? Math.min(1, (nowT - vfAt) / vfGap) : 1);
-      const va = activeVid.videoWidth / activeVid.videoHeight, ca = (slicing() && vidMode !== 'stretch' ? cv.width / 3 : cv.width) / cv.height;
+      const va = activeVid.videoWidth / activeVid.videoHeight, ca = (slicing() && !vidPano() ? cv.width / 3 : cv.width) / cv.height;
       vidSc = va > ca ? [ca / va, 1] : [1, va / ca];
     }
     gl.uniform1f(U.uBgA, haveSt || !wantSt ? bgA : 0); gl.uniform1f(U.uBgM, bgM % 100); gl.uniform1f(U.uBgG, Math.floor(bgM / 100)); gl.uniform1f(U.uBgT, bgStart ? bgClock : 0); gl.uniform1f(U.uBeat, beat);
     gl.uniform1f(U.uProg, danceEl && danceEl.duration ? danceEl.currentTime / danceEl.duration : Math.min(1, bgStart ? (now - bgStart) / 1000 / 200 : 0));
-    gl.uniform1f(U.uVidA, vidA); gl.uniform1f(U.uVidMode, slicing() ? (vidMode === 'center' ? 1 : 2) : 0); gl.uniform1f(U.uBgRep, slicing() && vidMode === 'repeat' ? 1 : 0); gl.uniform2f(U.uVidSc, vidSc[0], vidSc[1]);
+    gl.uniform1f(U.uVidA, vidA); gl.uniform1f(U.uVidMode, slicing() && !vidPano() ? (vidMode === 'center' ? 1 : 2) : 0); gl.uniform1f(U.uBgRep, slicing() && vidMode !== 'center' ? 1 : 0); gl.uniform2f(U.uVidSc, vidSc[0], vidSc[1]);
     gl.uniform1f(U.uSpin, spinAng); gl.uniform1f(U.uRingR, .03 + ringAge * .55 * cur.s); gl.uniform1f(U.uRingA, ringAmt * .55 * Math.exp(-ringAge * 1.6));
     gl.uniform4f(U.uShoot, sx, sy, shoot ? shoot.dx : 1, shoot ? shoot.dy : 0); gl.uniform1f(U.uShootA, shootA);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
