@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 27/11 17:20</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 27/11 17:44</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -1784,7 +1784,7 @@ function vidPart(c, v, ux, uy, uw, uh, dx, dy, dw, dh, fx){
   c.save(); c.globalAlpha = Math.min(1, vidA); c.drawImage(v, (dx - ox) / k, (dy - oy) / k, dw / k, dh / k, dx, dy, dw, dh); c.restore();
 }
 function vidRegion(c, r, U3, dx, dy, dw, dh){
-  const v = vidDirect(); if (!v) return;
+  const v = vidDirect(); if (!v || domVid === v) return;
   if (SHAPE.on && r === 'C') return;
   if (r !== 'C' && camSide(r)) return;
   if (vidPano()) vidPart(c, v, U3[0], U3[1], U3[2], U3[3], dx, dy, dw, dh);
@@ -3456,7 +3456,30 @@ function setSlot(sl, on, x, y, w, h, side, txt){
   const tx = txt || '';
   if (sl.tk !== tx){ sl.tk = tx; sl.t.textContent = tx; sl.t.style.display = tx ? 'block' : 'none'; sl.t.style.fontSize = (sl.fs * Math.min(1, Math.sqrt(38 / Math.max(38, tx.length)))).toFixed(1) + 'px'; }
 }
+let domVid = null;   /* vídeo exibido como elemento nativo no telão (o canvas não o redesenha) */
+function domVidUpdate(){
+  const U = screens.U, v = vidDirect();
+  let want = null;
+  if (U && !U.win.closed && v && liveDom() && !SHAPE.on && !(playing.fit === 'core' && !vidPano())){
+    const W = U.win.innerWidth, H = U.win.innerHeight, R = resRects(W, H), vis = ['L', 'C', 'R'].filter(r => R[r][2] > 0 && R[r][3] > 0);
+    if (vidPano()){ const x0 = Math.min(...vis.map(r => R[r][0])), y0 = Math.min(...vis.map(r => R[r][1])); want = [x0 * W, y0 * H, (Math.max(...vis.map(r => R[r][0] + R[r][2])) - x0) * W, (Math.max(...vis.map(r => R[r][1] + R[r][3])) - y0) * H]; }
+    else if (vidMode === 'center' || (isCoral(playing) && (camSide('L') || camSide('R'))) || !slicing()){ const c = R.C; want = [c[0] * W, c[1] * H, c[2] * W, c[3] * H]; }
+  }
+  if (!want){ if (domVid){ const old = domVid; domVid = null; old.style.cssText = ''; vidHost().appendChild(old); if (old === activeVid && !old.paused) old.play().catch(() => {}); } return; }
+  const L = liveLayer(U.win);
+  let box = U.win.document.getElementById('vbox');
+  if (!box){ box = U.win.document.createElement('div'); box.id = 'vbox'; box.style.cssText = 'position:absolute;overflow:hidden;background:#000'; L.insertBefore(box, L.firstChild); }
+  if (domVid && domVid !== v){ const old = domVid; old.style.cssText = ''; vidHost().appendChild(old); }
+  if (v.parentNode !== box){ const was = !v.paused; box.appendChild(v); if (was) v.play().catch(() => {}); }
+  domVid = v;
+  Object.assign(box.style, {left: want[0] + 'px', top: want[1] + 'px', width: want[2] + 'px', height: want[3] + 'px', display: 'block'});
+  const fx = VFOCUS[(playing._swapped && playing.vf2) || playing.vf];
+  v.style.cssText = `position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;object-position:${vidPano() || fx == null ? 50 : Math.round(fx * 100)}% 50%`;
+  const cardOn = logoA > .003 && (cardWhere() === 'all' || cardWhere() === 'center');
+  box.style.opacity = (Math.min(1, vidA) * (cardOn ? 1 - logoA : 1)).toFixed(3);
+}
 function updateLive(){
+  try { domVidUpdate(); } catch(_){}
   const dom = liveDom(), ly = lyrNow(), txt = ly ? ly.cur : '', op = (1 - blackA).toFixed(3);
   const U = screens.U;
   if (U && !U.win.closed){
@@ -4264,7 +4287,7 @@ function frame(now){
       if (av.requestVideoFrameCallback && !av.__vf){ av.__vf = true; const cb = (t, md) => { av.__newF = true; av.__mt = md.mediaTime; av.requestVideoFrameCallback(cb); }; av.requestVideoFrameCallback(cb); }
       const ct = av.__vf ? (av.__mt ?? av.currentTime) : av.currentTime;
       const isNew = av.__vf ? !!av.__newF : ct !== vfLast;
-      if (isNew || vfEl !== av){
+      if ((isNew || vfEl !== av) && !(domVid === av && vfEl === av && nowT - vfAt < 95)){
         av.__newF = false;
         const jump = vfEl !== activeVid || Math.abs(ct - vfLast) > .5;
         if (!jump){ const g = nowT - vfAt; if (g > 5 && g < 1500) vfGap += (g - vfGap) * .3; }
@@ -4284,7 +4307,7 @@ function frame(now){
     }
     gl.uniform1f(U.uBgA, haveSt || !wantSt ? bgA : 0); gl.uniform1f(U.uBgM, bgM % 100); gl.uniform1f(U.uBgG, Math.floor(bgM / 100)); gl.uniform1f(U.uBgT, bgStart ? bgClock : 0); gl.uniform1f(U.uBeat, beat);
     gl.uniform1f(U.uProg, danceEl && danceEl.duration ? danceEl.currentTime / danceEl.duration : Math.min(1, bgStart ? (now - bgStart) / 1000 / 200 : 0));
-    gl.uniform1f(U.uVidA, vidA); gl.uniform1f(U.uVidMode, slicing() && !vidPano() ? (vidMode === 'center' ? 1 : 2) : 0); gl.uniform1f(U.uBgRep, slicing() && vidMode !== 'center' ? 1 : 0); gl.uniform2f(U.uVidSc, vidSc[0], vidSc[1]);
+    gl.uniform1f(U.uVidA, vidA); gl.uniform1f(U.uVidMode, slicing() && !vidPano() ? (vidMode === 'center' ? 1 : 2) : 0); gl.uniform1f(U.uBgRep, slicing() && vidMode === 'repeat' ? 1 : 0); gl.uniform2f(U.uVidSc, vidSc[0], vidSc[1]);
     gl.uniform1f(U.uSpin, spinAng); gl.uniform1f(U.uRingR, .03 + ringAge * .55 * cur.s); gl.uniform1f(U.uRingA, ringAmt * .55 * Math.exp(-ringAge * 1.6));
     gl.uniform4f(U.uShoot, sx, sy, shoot ? shoot.dx : 1, shoot ? shoot.dy : 0); gl.uniform1f(U.uShootA, shootA);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
