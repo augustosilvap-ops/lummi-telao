@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 27/11 19:01</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 27/11 19:06</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -1808,6 +1808,7 @@ function drawSingle(sc){
   ['L', 'C', 'R'].forEach(r => {
     const [x, y, w, h] = RR[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
     if (dw < 2 || dh < 2) return;
+    if (r === 'C' && domVid && domVid === activeVid && playing && playing.vc && blackA < .002) return;
     if (r !== 'C' && playing && playing.vc && domVid){ c.fillStyle = '#000'; c.fillRect(dx, dy, dw, dh); }
     else if (r !== 'C' && danceOnAir() && !sl){ coverDraw(c, 0, 0, cv.width, cv.height, dx, dy, dw, dh); vidRegion(c, r, U3, dx, dy, dw, dh); }
     else if (r !== 'C' && camSide(r)){ if (!liveDom()){ camDraw(c, dx, dy, dw, dh, r); lyrDraw(c, dx, dy, dw, dh); } }
@@ -3459,7 +3460,7 @@ function setSlot(sl, on, x, y, w, h, side, txt){
   const tx = txt || '';
   if (sl.tk !== tx){ sl.tk = tx; sl.t.textContent = tx; sl.t.style.display = tx ? 'block' : 'none'; sl.t.style.fontSize = (sl.fs * Math.min(1, Math.sqrt(38 / Math.max(38, tx.length)))).toFixed(1) + 'px'; }
 }
-let domVid = null, domCover = false, skipN = 0;   /* vídeo exibido como elemento nativo no telão (o canvas não o redesenha) */
+let domVid = null, domCover = false, skipN = 0, coverN = 0;   /* vídeo exibido como elemento nativo no telão (o canvas não o redesenha) */
 function domVidUpdate(){
   const U = screens.U, v = vidDirect();
   let want = null;
@@ -4296,7 +4297,7 @@ function frame(now){
       if (av.requestVideoFrameCallback && !av.__vf){ av.__vf = true; const cb = (t, md) => { av.__newF = true; av.__mt = md.mediaTime; av.requestVideoFrameCallback(cb); }; av.requestVideoFrameCallback(cb); }
       const ct = av.__vf ? (av.__mt ?? av.currentTime) : av.currentTime;
       const isNew = av.__vf ? !!av.__newF : ct !== vfLast;
-      if ((isNew || vfEl !== av) && !(domVid === av && vfEl === av && nowT - vfAt < 95)){
+      if ((isNew || vfEl !== av) && !(domVid === av && domCover)){
         av.__newF = false;
         const jump = vfEl !== activeVid || Math.abs(ct - vfLast) > .5;
         if (!jump){ const g = nowT - vfAt; if (g > 5 && g < 1500) vfGap += (g - vfGap) * .3; }
@@ -4320,7 +4321,10 @@ function frame(now){
     gl.uniform1f(U.uSpin, spinAng); gl.uniform1f(U.uRingR, .03 + ringAge * .55 * cur.s); gl.uniform1f(U.uRingA, ringAmt * .55 * Math.exp(-ringAge * 1.6));
     gl.uniform4f(U.uShoot, sx, sy, shoot ? shoot.dx : 1, shoot ? shoot.dy : 0); gl.uniform1f(U.uShootA, shootA);
     /* com o vídeo nativo cobrindo o telão, o fundo escondido atrás dele é desenhado só 1 vez a cada 6 quadros (prévia do operador) */
-    const skipGl = domCover && domVid && blackA < .002 && blackT < .002 && (++skipN % 6) !== 0, skipCv = skipGl && logoA < .003;
+    /* com o vídeo nativo cobrindo o telão, nada do fundo escondido é desenhado (a placa de vídeo fica livre para o vídeo);
+       a janela do telão só é redesenhada nos primeiros quadros, com a logo ou durante o blackout */
+    coverN = domCover && domVid ? coverN + 1 : 0;
+    const skipGl = coverN > 2, skipCv = skipGl && coverN > 4 && logoA < .003 && Math.abs(logoT - logoA) < .003 && blackA < .002 && blackT < .002;
     if (!skipGl) gl.drawArrays(gl.TRIANGLES, 0, 3);
     const sl = slicing(), sw = sl ? Math.floor(cv.width / 3) : cv.width;
     for (const r in screens){
