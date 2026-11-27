@@ -1,5 +1,5 @@
 // Lummi: guarda o programa, as músicas e os vídeos neste computador
-const V = 'lummi-1795815155';
+const V = 'lummi-1795815369';
 const FILES = ["musicas/apl.mp3", "musicas/c01.mp3", "musicas/c09.mp3", "musicas/c14.mp3", "musicas/c16.mp3", "musicas/c16b.mp3", "musicas/c24.mp3", "musicas/d01.mp3", "musicas/d02.mp3", "musicas/d03.mp3", "musicas/d04.mp3", "musicas/d05.mp3", "musicas/d06.mp3", "musicas/d07.mp3", "musicas/d08.mp3", "musicas/d09.mp3", "musicas/d10.mp3", "musicas/d11.mp3", "musicas/d12.mp3", "musicas/d13.mp3", "musicas/d14.mp3", "musicas/dcl.mp3", "musicas/vce.mp3", "videos/ceduca41.mp4.p0.mp4", "videos/ceduca41.mp4.p1.mp4", "videos/ceduca41.mp4.p2.mp4", "videos/ceduca41.mp4.p3.mp4", "videos/ceduca41.mp4.p4.mp4", "videos/ceduca41.mp4.p5.mp4", "videos/ceduca41.mp4.p6.mp4", "videos/ceduca41.mp4.p7.mp4"];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(V).then(c => Promise.all(['./', ...FILES].map(u => c.add(u).catch(() => {}))))); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
