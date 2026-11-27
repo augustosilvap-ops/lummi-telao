@@ -264,7 +264,7 @@ input[type=file]{display:none}
   <div class="cols">
   <div class="colA">
   <header class="top">
-    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 27/11 19:22</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
+    <h1>Lummi <small id="ver" style="font:500 10px var(--mono, monospace);color:var(--ink-dim);letter-spacing:.06em">versão 27/11 19:26</small></h1><button id="tallBtn" title="Alternar entre prévia pequena (operação) e prévia grande" style="min-height:34px;padding:4px 10px;font-size:13px">⇕ Prévia</button>
     <div class="scene-now">cena atual<b id="sceneName">Presença</b></div>
   </header>
     <div id="liveBox"><div class="lv-h"><b>● AO VIVO</b><span id="liveInfo"></span></div><div id="liveSlot"><i id="liveBlack"></i></div></div>
@@ -486,7 +486,7 @@ input[type=file]{display:none}
         <div id="resBox" hidden style="display:flex;flex-direction:column;gap:6px">
           <p class="hint">Uma janela só com as 3 telas lado a lado. Coloque essa janela na saída que vai para o Resolume ou para o processador e deixe em tela cheia. Ajuste abaixo onde fica cada tela dentro da imagem (em %), igual às “slices” do Resolume.</p>
           <div class="g3 center">
-            <button id="resP-sq" title="O Lummi vai só para a tela central; as laterais ficam com a transmissão do Resolume">Só o central · quadrado (recomendado)</button>
+            <button id="resP-sq" title="Com um vídeo no ar: ele vai só para o telão central e, no próximo take, tudo volta como estava (não mexe nos cortes)">Só o central (só este vídeo)</button>
             <button id="resP-v">3 empilhadas · 1536×4608</button>
             <button id="resP-h">3 lado a lado</button>
             <button id="resP-t" title="Saída HDMI do teatro: lateral 1024 + central 1280 + lateral 1024, com 1280 de altura">Teatro · 3328×1280</button>
@@ -1675,7 +1675,7 @@ const screens = {L: null, C: null, R: null, U: null}, ROLE = {L: 'esquerdo', C: 
 let screenMode = 'pano'; try { if (!localStorage.getItem('lummi-mig-pano')){ localStorage.setItem('lummi-screens', 'pano'); localStorage.setItem('lummi-mig-pano', '1'); } screenMode = localStorage.getItem('lummi-screens') || 'pano'; if (screenMode === 'one') screenMode = 'pano'; } catch(_){}
 let vidMode = 'pano'; try { if (!localStorage.getItem('lummi-mig-vpano')){ localStorage.setItem('lummi-vidmode', 'pano'); localStorage.setItem('lummi-mig-vpano', '1'); } vidMode = localStorage.getItem('lummi-vidmode') || 'pano'; } catch(_){}
 /* vídeo panorâmico (uma imagem contínua nas 3 telas) — no coral com câmera nas laterais, o vídeo fica inteiro no central */
-function vidPano(){ return slicing() && vidMode === 'pano' && !(playing && playing.vc) && !(playing && isCoral(playing) && (camSide('L') || camSide('R'))); }
+function vidPano(){ return slicing() && vidMode === 'pano' && !vcOn() && !(playing && isCoral(playing) && (camSide('L') || camSide('R'))); }
 function openCount(){ return Object.values(screens).filter(Boolean).length; }
 function slicing(){ return screenMode !== 'mirror' && !recSize && ((RES.on ? !!screens.U : openCount() > 1) || !!(typeof AUX !== 'undefined' && AUX.SIM && !AUX.SIM.win.closed)); }
 /* câmera nas laterais: no coral (filmagem com letra); nas falas e danças só se marcado */
@@ -1751,7 +1751,7 @@ function camDraw(c, dx, dy, dw, dh, side){
 }
 /* ===== saída única: as 3 telas numa janela só (Resolume / processador de vídeo recorta) ===== */
 const RES_DEF = {on: false, sq: false, rects: {L: [0, 0, 1/3, 1], C: [1/3, 0, 1/3, 1], R: [2/3, 0, 1/3, 1]}, test: false};
-let RES = JSON.parse(JSON.stringify(RES_DEF)); try { const o = JSON.parse(localStorage.getItem('lummi-res') || '{}'); if (o.rects) RES.rects = o.rects; RES.on = !!o.on; RES.sq = !!o.sq; } catch(_){}
+let RES = JSON.parse(JSON.stringify(RES_DEF)); try { const o = JSON.parse(localStorage.getItem('lummi-res') || '{}'); if (o.rects) RES.rects = o.rects; RES.on = !!o.on; RES.sq = false; } catch(_){}
 const resSave = () => { try { localStorage.setItem('lummi-res', JSON.stringify({on: RES.on, sq: RES.sq, rects: RES.rects})); } catch(_){} };
 /* retângulos reais (em frações da janela); “só o central quadrado”: um quadrado no meio, sem laterais */
 function resRects(W, H){
@@ -1808,8 +1808,8 @@ function drawSingle(sc){
   ['L', 'C', 'R'].forEach(r => {
     const [x, y, w, h] = RR[r], dx = x * W, dy = y * H, dw = w * W, dh = h * H;
     if (dw < 2 || dh < 2) return;
-    if (r === 'C' && domVid && domVid === activeVid && playing && playing.vc && blackA < .002) return;
-    if (r !== 'C' && playing && playing.vc && domVid){ c.fillStyle = '#000'; c.fillRect(dx, dy, dw, dh); }
+    if (r === 'C' && domVid && domVid === activeVid && vcOn() && blackA < .002) return;
+    if (r !== 'C' && vcOn() && domVid){ c.fillStyle = '#000'; c.fillRect(dx, dy, dw, dh); }
     else if (r !== 'C' && danceOnAir() && !sl){ coverDraw(c, 0, 0, cv.width, cv.height, dx, dy, dw, dh); vidRegion(c, r, U3, dx, dy, dw, dh); }
     else if (r !== 'C' && camSide(r)){ if (!liveDom()){ camDraw(c, dx, dy, dw, dh, r); lyrDraw(c, dx, dy, dw, dh); } }
     else {
@@ -1840,7 +1840,7 @@ function paintRes(){
   ['L', 'C', 'R'].forEach(r => [0, 1, 2, 3].forEach(k => { const el = document.getElementById(`res-${r}${k}`); if (el && document.activeElement !== el) el.value = +(RES.rects[r][k] * 100).toFixed(2); }));
   const t = document.getElementById('resTest'); if (t) t.checked = RES.test;
   const isV = !RES.sq && RES.rects.C[1] > .3 && RES.rects.C[2] > .9;
-  document.getElementById('resP-sq')?.classList.toggle('on', RES.sq);
+  document.getElementById('resP-sq')?.classList.toggle('on', RES.sq || tempCentral);
   document.getElementById('resP-v')?.classList.toggle('on', isV);
   document.getElementById('resP-h')?.classList.toggle('on', !RES.sq && !isV);
   const tb = document.querySelector('.resT'); if (tb) tb.style.display = RES.sq ? 'none' : '';
@@ -2851,6 +2851,7 @@ function convoAt(j){ for (let i = j; i < takes.length; i++){ const t = takes[i];
 function fire(j){
   const tk = takes[j]; if (!tk) return;
   lyrOnFire(tk); showMarkFire(tk);
+  if (tempCentral){ tempCentral = false; setTimeout(() => { try { paintRes(); } catch(_){} }, 0); }
   if (!(tk.cues || []).some(c => c[1] === 'spots')){ spotT.fill(0); flashRate = 0; }
   if (starsOnly){ starsOnly = false; qStars.classList.remove('on'); }
   paused = false; paintPause();
@@ -3182,7 +3183,14 @@ document.getElementById('res-off').onclick = e => { RES.on = false; resSave(); i
 document.getElementById('resTest').onchange = e => { RES.test = e.target.checked; };
 ['L', 'C', 'R'].forEach(r => [0, 1, 2, 3].forEach(k => { document.getElementById(`res-${r}${k}`).oninput = e => { const v = parseFloat(e.target.value); if (!isNaN(v)){ RES.rects[r][k] = Math.max(0, Math.min(100, v)) / 100; resSave(); resize(); } }; }));
 const resPreset = (sq, rects, msg) => { RES.sq = sq; if (rects) RES.rects = rects; resSave(); paintRes(); resize(); say(msg); };
-document.getElementById('resP-sq').onclick = e => { resPreset(true, null, 'Saída única: só a tela central, em quadrado. No Resolume, ponha essa fonte na slice da tela central; as laterais seguem com a transmissão.'); if (screenMode !== 'one'){ screenMode = 'one'; try { localStorage.setItem('lummi-screens', 'one'); } catch(_){} paintScreens(); } e.currentTarget.blur(); };
+document.getElementById('resP-sq').onclick = e => {
+  /* “só o central” agora vale só para o vídeo no ar e volta sozinho no próximo take (não mexe nos cortes salvos) */
+  e.currentTarget.blur();
+  if (RES.sq){ RES.sq = false; resSave(); paintRes(); resize(); }
+  if (!playing || playing.kind !== 'video'){ say('Dispare o vídeo primeiro e depois clique aqui: ele vai só para o central e, no próximo take, tudo volta como estava.'); return; }
+  tempCentral = !tempCentral; paintRes();
+  say(tempCentral ? 'Este vídeo vai só para o telão central. As laterais ficam livres para a logo (tecla O). No próximo take volta tudo como estava.' : 'Vídeo de volta ao telão inteiro.');
+};
 document.getElementById('resP-v').onclick = e => { resPreset(false, {L: [0, 0, 1, 1/3], C: [0, 1/3, 1, 1/3], R: [0, 2/3, 1, 1/3]}, '3 telas empilhadas (1536×4608): esquerda em cima, central no meio, direita embaixo. Confira a ordem com a tela de teste.'); e.currentTarget.blur(); };
 document.getElementById('resP-t').onclick = e => { resPreset(false, {L: [0, 0, 1024 / 3328, 1], C: [1024 / 3328, 0, 1280 / 3328, 1], R: [2304 / 3328, 0, 1024 / 3328, 1]}, 'Teatro 3328×1280: lateral 1024 · central 1280 · lateral 1024. Ligue a tela de teste e confira se as bordas batem com o telão.'); e.currentTarget.blur(); };
 document.getElementById('resP-h').onclick = e => { resPreset(false, JSON.parse(JSON.stringify(RES_DEF.rects)), '3 telas lado a lado.'); e.currentTarget.blur(); };
@@ -3460,13 +3468,15 @@ function setSlot(sl, on, x, y, w, h, side, txt){
   const tx = txt || '';
   if (sl.tk !== tx){ sl.tk = tx; sl.t.textContent = tx; sl.t.style.display = tx ? 'block' : 'none'; sl.t.style.fontSize = (sl.fs * Math.min(1, Math.sqrt(38 / Math.max(38, tx.length)))).toFixed(1) + 'px'; }
 }
-let domVid = null, domCover = false, skipN = 0, coverN = 0;   /* vídeo exibido como elemento nativo no telão (o canvas não o redesenha) */
+let domVid = null, domCover = false, skipN = 0, coverN = 0;
+var tempCentral = false;
+const vcOn = () => !!(playing && (playing.vc || (tempCentral && playing.kind === 'video')));   /* vídeo exibido como elemento nativo no telão (o canvas não o redesenha) */
 function domVidUpdate(){
   const U = screens.U, v = vidDirect();
   let want = null;
   if (U && !U.win.closed && v && liveDom() && !SHAPE.on){
     const W = U.win.innerWidth, H = U.win.innerHeight, R = resRects(W, H), vis = ['L', 'C', 'R'].filter(r => R[r][2] > 0 && R[r][3] > 0);
-    if (playing.vc){ const c = R.C; want = [c[0] * W, c[1] * H, c[2] * W, c[3] * H]; }
+    if (vcOn()){ const c = R.C; want = [c[0] * W, c[1] * H, c[2] * W, c[3] * H]; }
     else if (playing.fit === 'core' && slicing() && vidMode !== 'center'){ const x0 = Math.min(...vis.map(r => R[r][0])), y0 = Math.min(...vis.map(r => R[r][1])); want = [x0 * W, y0 * H, (Math.max(...vis.map(r => R[r][0] + R[r][2])) - x0) * W, (Math.max(...vis.map(r => R[r][1] + R[r][3])) - y0) * H]; }
     else if (vidPano()){ const x0 = Math.min(...vis.map(r => R[r][0])), y0 = Math.min(...vis.map(r => R[r][1])); want = [x0 * W, y0 * H, (Math.max(...vis.map(r => R[r][0] + R[r][2])) - x0) * W, (Math.max(...vis.map(r => R[r][1] + R[r][3])) - y0) * H]; }
     else if (vidMode === 'center' || (isCoral(playing) && (camSide('L') || camSide('R'))) || !slicing()){ const c = R.C; want = [c[0] * W, c[1] * H, c[2] * W, c[3] * H]; }
@@ -3488,7 +3498,7 @@ function domVidUpdate(){
   if (v._css !== css || !v.style.cssText){ v._css = css; v.style.cssText = css; }
   { const W = U.win.innerWidth, H = U.win.innerHeight, R = resRects(W, H), vis = ['L', 'C', 'R'].filter(r => R[r][2] > 0 && R[r][3] > 0);
     const uw = (Math.max(...vis.map(r => R[r][0] + R[r][2])) - Math.min(...vis.map(r => R[r][0]))) * W;
-    domCover = want[2] >= uw - 2 || (camSide('L') && camSide('R')) || !!playing.vc; }
+    domCover = want[2] >= uw - 2 || (camSide('L') && camSide('R')) || vcOn(); }
   const cardOn = logoA > .003 && (cardWhere() === 'all' || cardWhere() === 'center');
   const op = (Math.min(1, vidA) * (cardOn ? 1 - logoA : 1)).toFixed(2);
   if (box._op !== op){ box._op = op; box.style.opacity = op; }
@@ -3525,8 +3535,8 @@ let SCR = [];
 const OUTS = [
   {k: 'T', n: 'Telão (palco)', open: pl => {
     if (pl && pl.width === 3328 && pl.height === 1280){
-      const def = JSON.stringify(RES.rects) === JSON.stringify(RES_DEF.rects) || RES.sq || RES.rects.C[1] > .3;
-      if (!RES.on || def){ RES.on = true; RES.sq = false; if (def) RES.rects = {L: [0, 0, 1024 / 3328, 1], C: [1024 / 3328, 0, 1280 / 3328, 1], R: [2304 / 3328, 0, 1024 / 3328, 1]}; resSave(); paintRes(); paintScreens(); }
+      const def = JSON.stringify(RES.rects) === JSON.stringify(RES_DEF.rects);
+      if (!RES.on || def || RES.sq){ RES.on = true; RES.sq = false; if (def) RES.rects = {L: [0, 0, 1024 / 3328, 1], C: [1024 / 3328, 0, 1280 / 3328, 1], R: [2304 / 3328, 0, 1024 / 3328, 1]}; resSave(); paintRes(); paintScreens(); }
     }
     openScreen(RES.on ? 'U' : 'C', pl);
   }},
